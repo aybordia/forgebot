@@ -113,7 +113,7 @@ Backend:
 cd backend && uvicorn main:app --reload --host 0.0.0.0 --port 8000
 curl -X POST http://localhost:8000/api/sim/load -H "Content-Type: application/json" -d '{}'
 curl http://localhost:8000/api/sim/status
-curl -X POST http://localhost:8000/api/sim/correct -H "Content-Type: application/json" -d '{"correction":"extend the reach and widen the grip"}'
+curl -X POST http://localhost:8000/api/sim/correct -H "Content-Type: application/json" -d '{"correction":"extend the reach and widen the grip","user_id":"tanush-sim-test"}'
 ```
 
 Frontend:

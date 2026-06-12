@@ -437,7 +437,7 @@ MuJoCo static mesh                         motion_params JSON
                    best variant selected
                            │
                            ▼
-                   WebSocket stream → Three.js (frontend)
+                   WebSocket stream → canvas (frontend)
                            │
                    User speaks correction
                            │
@@ -573,10 +573,13 @@ Backboard replaces the old "design literacy panel" concept. It is now the memory
 ### Backend client
 
 ```python
+# pip install backboard-client (confirm exact package name from Backboard docs before installing)
 from backboard import AsyncClient
 
 client = AsyncClient(api_key=BACKBOARD_API_KEY)
 ```
+
+> **Note:** Verify the actual pip package name and import path from Backboard's documentation. If the SDK differs, update all `from backboard import AsyncClient` references. If the SDK is unavailable, implement a thin HTTP wrapper against the Backboard REST API and fall back to local Ollama when `BACKBOARD_API_KEY` is unset.
 
 ### Plan Mode
 
