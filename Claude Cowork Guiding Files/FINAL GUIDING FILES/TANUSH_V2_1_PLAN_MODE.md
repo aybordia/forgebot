@@ -127,3 +127,82 @@ Manual browser check:
 - Real sim rendering.
 - Vercel deployment.
 
+## What Success Looks Like
+
+This slice is successful when a user can describe a robot need, answer the assistant's clarifying questions, and end with a valid `RobotSpec` saved in the browser for the rest of the product to consume.
+
+### Solo Success Criteria
+
+- `GET /health` returns `{"status":"ok"}` while the backend is running.
+- `POST /api/plan/chat` always returns the architecture contract: `reply`, `is_complete`, and `robot_spec`.
+- `POST /api/omi-webhook` accepts `transcript` and returns the same response shape as chat.
+- `GET /api/plan/spec/{session_id}` returns `null` before completion and the completed spec after completion.
+- `DELETE /api/plan/reset/{session_id}` clears that session without affecting other sessions.
+- The frontend `/plan` page works with text input even if browser speech recognition is unavailable.
+- The frontend `/plan` page works without an ElevenLabs key; missing audio must not break chat.
+- The mock/fallback path reaches a completed spec when Ollama is off.
+- The real Ollama path reaches a completed spec when `ollama serve` and `mistral` are available.
+
+### Backend Test Steps
+
+1. Start the backend:
+
+```bash
+cd backend
+uvicorn main:app --reload --host 0.0.0.0 --port 8000
+```
+
+2. Verify health:
+
+```bash
+curl http://localhost:8000/health
+```
+
+3. Verify chat contract:
+
+```bash
+curl -X POST http://localhost:8000/api/plan/chat \
+  -H "Content-Type: application/json" \
+  -d '{"message":"I need a robot that moves boxes from a shelf to a table","session_id":"plan-success"}'
+```
+
+4. Continue the same `session_id` through payload, mounting, reach, and constraints until `is_complete` becomes `true`.
+5. Confirm `robot_spec` includes `task`, `payload_kg`, `mounted`, `reach_cm`, `dof`, `gripper_type`, and `notes`.
+6. Confirm spec retrieval:
+
+```bash
+curl http://localhost:8000/api/plan/spec/plan-success
+```
+
+7. Confirm reset:
+
+```bash
+curl -X DELETE http://localhost:8000/api/plan/reset/plan-success
+curl http://localhost:8000/api/plan/spec/plan-success
+```
+
+### Frontend Test Steps
+
+1. Start the frontend:
+
+```bash
+cd frontend
+npm run dev
+```
+
+2. Open `http://localhost:3000/plan`.
+3. Send messages by typing; do not rely on voice for the first test.
+4. Confirm assistant messages append in order and the chat autoscrolls.
+5. Complete a full mock or real conversation.
+6. Confirm a green/spec-ready card appears.
+7. Open browser DevTools and verify `localStorage.getItem("robot_spec")` is valid JSON.
+8. Refresh the page and confirm it does not crash with saved local storage present.
+
+### Integration Handoff Checks
+
+- The saved `localStorage` key must be exactly `robot_spec`.
+- The saved spec must be usable as the `robot_spec` input to `/api/cad/generate`.
+- The completed page should route to `/capture` if it exists, but must not fail if Ayan's capture slice is not implemented yet.
+- No component outside `frontend/lib/api.ts` should call the plan endpoints directly.
+- After merging with Ayan's capture slice, the full path `/plan -> /capture` should work without changing the spec shape.
+

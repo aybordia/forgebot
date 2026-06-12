@@ -132,3 +132,69 @@ Manual browser check:
 - Real MJX GPU.
 - Tanush's vertical slices.
 
+## What Success Looks Like
+
+This slice is successful when both stacks have a stable contract foundation: the frontend can route through the whole product, the backend exposes every architecture endpoint with correct shapes, and later slices can replace stubs without changing callers.
+
+### Solo Success Criteria
+
+- The backend starts on port `8000` with no import errors.
+- `GET /health` returns `{"status":"ok"}`.
+- Every endpoint listed in `ARCHITECTURE.md` exists and returns the expected top-level fields.
+- `/ws/sim` accepts a WebSocket connection and sends a recognizable status message.
+- `backend/static/robot_current.stl` exists and is a valid placeholder STL.
+- `GET /mobile` returns a usable mobile placeholder page.
+- The frontend starts on port `3000`.
+- `/`, `/plan`, `/capture`, `/sim`, and `/export` all render without crashing.
+- All frontend network calls go through `frontend/lib/api.ts` or `frontend/lib/websocket.ts`.
+- Turning off the backend does not break frontend rendering because mocks are available.
+
+### Backend Contract Test Steps
+
+1. Start the backend:
+
+```bash
+cd backend
+uvicorn main:app --reload --host 0.0.0.0 --port 8000
+```
+
+2. Run the minimum endpoint smoke test:
+
+```bash
+curl http://localhost:8000/health
+curl http://localhost:8000/api/scan/status
+curl http://localhost:8000/api/motion/status
+curl http://localhost:8000/api/sim/status
+curl http://localhost:8000/api/export/bom
+curl http://localhost:8000/api/export/backboard
+curl -I http://localhost:8000/api/export/stl
+curl http://localhost:8000/mobile
+```
+
+3. Confirm no endpoint returns an HTML error page or stack trace.
+4. Confirm stub responses are clearly marked in logs or code comments so later slices know what to replace.
+
+### Frontend Contract Test Steps
+
+1. Start the frontend:
+
+```bash
+cd frontend
+npm run dev
+```
+
+2. Open `http://localhost:3000`.
+3. Click through the demo route order: `/plan`, `/capture`, `/sim`, `/export`.
+4. Confirm each route has a visible owner/placeholder state if the real slice is not implemented.
+5. Stop the backend and refresh each route.
+6. Confirm each route still renders with mock data or a graceful offline message.
+
+### Integration Handoff Checks
+
+- Later slices should be able to replace stub route handlers without changing endpoint URLs.
+- Later frontend slices should reuse the existing shared types in `lib/api.ts`.
+- `NEXT_PUBLIC_BACKEND_URL` should default to `http://localhost:8000`.
+- `NEXT_PUBLIC_WS_URL` should default to `ws://localhost:8000`.
+- The route order must remain compatible with the demo: `/plan -> /capture -> /sim -> /export`.
+- After all slices merge, this foundation should disappear into the product instead of leaving duplicate placeholder UI.
+

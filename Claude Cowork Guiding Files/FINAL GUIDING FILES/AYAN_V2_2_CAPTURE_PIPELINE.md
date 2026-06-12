@@ -138,3 +138,96 @@ Manual browser check:
 - Export page.
 - Tanush's slices.
 
+## What Success Looks Like
+
+This slice is successful when a laptop can show a QR capture flow, a phone can upload environment and motion files, and the backend stores clean scan/motion state that CAD and Sim can consume later.
+
+### Solo Success Criteria
+
+- `GET /api/scan/status` returns `loaded: false` before upload and `loaded: true` after a valid or fallback upload.
+- `POST /api/scan/upload` accepts `.obj`, saves `/tmp/environment.obj`, and returns bounds plus vertex counts.
+- Cleaned environment output is written to `/tmp/environment_clean.stl` when mesh cleaning succeeds.
+- Invalid scan file types return a clear `400` response.
+- `GET /api/motion/status` returns `processed: false` before upload and `processed: true` after upload.
+- `POST /api/motion/upload` accepts `.mp4`, `.mov`, or `.webm` and returns the architecture `motion_params` shape.
+- MediaPipe failures use deterministic fallback motion params instead of blocking the demo.
+- `GET /mobile` serves a phone-friendly upload page.
+- The frontend `/capture` page shows a QR code and completion checklist.
+- The desktop checklist can complete through real backend status or mock fallback.
+
+### Backend Test Steps
+
+1. Start the backend:
+
+```bash
+cd backend
+uvicorn main:app --reload --host 0.0.0.0 --port 8000
+```
+
+2. Check initial statuses:
+
+```bash
+curl http://localhost:8000/api/scan/status
+curl http://localhost:8000/api/motion/status
+```
+
+3. Test mobile page:
+
+```bash
+curl http://localhost:8000/mobile
+```
+
+4. Upload a test `.obj`:
+
+```bash
+curl -X POST http://localhost:8000/api/scan/upload \
+  -F "file=@/path/to/test.obj"
+```
+
+5. Confirm scan status changes:
+
+```bash
+curl http://localhost:8000/api/scan/status
+test -f /tmp/environment.obj
+```
+
+6. Upload a test video:
+
+```bash
+curl -X POST http://localhost:8000/api/motion/upload \
+  -F "file=@/path/to/test.mp4"
+```
+
+7. Confirm motion status includes `motion_params.max_reach_cm`, `avg_joint_angles_deg`, `grip_aperture_cm`, `motion_speed`, `endpoint_height_cm`, and `reps_detected`.
+8. Test bad input:
+
+```bash
+curl -i -X POST http://localhost:8000/api/scan/upload \
+  -F "file=@/path/to/not-an-obj.txt"
+```
+
+### Frontend Test Steps
+
+1. Start the frontend:
+
+```bash
+cd frontend
+npm run dev
+```
+
+2. Open `http://localhost:3000/capture` on desktop.
+3. Confirm the QR code points to `NEXT_PUBLIC_BACKEND_URL + "/mobile"`.
+4. Open the displayed mobile URL in a browser or phone.
+5. Upload scan and motion files from the mobile UI.
+6. Watch the desktop checklist update within the polling interval.
+7. Confirm "Continue to Sim" is disabled until both scan and motion are complete.
+8. Stop the backend and refresh `/capture`; the page should still render with mock or clear offline states.
+
+### Integration Handoff Checks
+
+- CAD generation should be able to use the motion params returned by this slice without renaming fields.
+- Sim should be able to use `/tmp/environment_clean.stl` if it exists and ignore it safely if it does not.
+- Plan Mode is not required to enter capture, but when `robot_spec` exists in local storage, capture should preserve it.
+- The mobile page must talk to the backend URL, not the Next.js dev server, when used from a phone.
+- After all slices merge, `/capture -> /sim` should work with no manual state edits.
+

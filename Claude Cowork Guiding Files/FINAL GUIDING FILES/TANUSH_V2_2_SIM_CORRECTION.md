@@ -137,3 +137,93 @@ Manual browser check:
 - Export page.
 - Ayan's frontend foundation, as long as you create missing local shell files carefully.
 
+## What Success Looks Like
+
+This slice is successful when the product can start a simulation, stream visual frames/status to the browser, accept a natural-language correction, and report CAD-style parameter changes without depending on scan, motion, or CAD being finished first.
+
+### Solo Success Criteria
+
+- `POST /api/sim/load` starts the sim exactly once and returns a running response.
+- Repeated `POST /api/sim/load` calls do not create duplicate background loops.
+- `/ws/sim` accepts a browser WebSocket connection.
+- `/ws/sim` sends status text messages with `fps`, `step`, `score`, and `gpu_util_pct`.
+- `/ws/sim` sends binary JPEG frames or a documented placeholder frame stream.
+- `GET /api/sim/status` reflects whether the sim is running.
+- `POST /api/sim/correct` returns deterministic `param_changes` even if Ollama or CAD is unavailable.
+- `POST /api/sim/stop` stops the loop and leaves the backend able to start again.
+- The frontend `/sim` page remains usable if the backend is offline by showing mock status or a clear connection state.
+
+### Backend Test Steps
+
+1. Start the backend:
+
+```bash
+cd backend
+uvicorn main:app --reload --host 0.0.0.0 --port 8000
+```
+
+2. Start the sim:
+
+```bash
+curl -X POST http://localhost:8000/api/sim/load \
+  -H "Content-Type: application/json" \
+  -d '{}'
+```
+
+3. Check status:
+
+```bash
+curl http://localhost:8000/api/sim/status
+```
+
+4. Submit the demo correction:
+
+```bash
+curl -X POST http://localhost:8000/api/sim/correct \
+  -H "Content-Type: application/json" \
+  -d '{"correction":"extend the reach and widen the grip"}'
+```
+
+5. Confirm the correction response includes `status`, `param_changes`, and `new_stl_url`.
+6. Confirm `param_changes` uses CAD/OpenSCAD-style names such as `arm_length_m` or `gripper_width_m`.
+7. Stop and restart:
+
+```bash
+curl -X POST http://localhost:8000/api/sim/stop -H "Content-Type: application/json" -d '{}'
+curl -X POST http://localhost:8000/api/sim/load -H "Content-Type: application/json" -d '{}'
+```
+
+8. Confirm the backend logs do not show duplicate sim loops after repeated starts.
+
+### WebSocket Test Steps
+
+1. Open browser DevTools on any page or use a WebSocket client.
+2. Connect to `ws://localhost:8000/ws/sim`.
+3. Confirm at least one JSON text message arrives with status fields.
+4. Confirm binary messages arrive after `/api/sim/load` starts.
+5. Disconnect the client and confirm the backend does not throw repeated dead-client errors.
+
+### Frontend Test Steps
+
+1. Start the frontend:
+
+```bash
+cd frontend
+npm run dev
+```
+
+2. Open `http://localhost:3000/sim`.
+3. Confirm the sim viewer shows connected, loading, or mock state instead of a blank crash.
+4. Confirm FPS/step/GPU UI updates from real or mock status.
+5. Type `extend the reach and widen the grip` into the correction console.
+6. Confirm the UI shows the returned parameter changes.
+7. Stop the backend and refresh `/sim`; the page should still render a useful offline state.
+
+### Integration Handoff Checks
+
+- If Ayan's CAD slice has produced `backend/static/robot_current.stl`, `/api/sim/load` should prefer it over the placeholder.
+- If Ayan's capture slice has produced `/tmp/environment_clean.stl`, the sim should include or safely ignore it without failing.
+- The WebSocket status shape must match `frontend/lib/websocket.ts` and `SimViewer`.
+- Correction `param_changes` must be compatible with the CAD parameter names from `OPENSCAD_SPEC.md`.
+- After merging all slices, the path `/capture -> /sim -> correction -> /export` should not require any response shape changes.
+

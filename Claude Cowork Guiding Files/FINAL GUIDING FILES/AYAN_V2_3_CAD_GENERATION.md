@@ -119,3 +119,89 @@ openscad --version
 - Export UI.
 - Tanush's slices.
 
+## What Success Looks Like
+
+This slice is successful when a robot spec plus motion params can produce stable CAD parameters, write a SCAD file, generate or safely fallback to an STL, and expose that STL for Sim and Export to consume.
+
+### Solo Success Criteria
+
+- `robot_templates/arm_4dof.scad` exists and includes the master arm assembly from `OPENSCAD_SPEC.md`.
+- `robot_templates/grippers/parallel.scad` and `robot_templates/grippers/adaptive.scad` exist.
+- `derive_openscad_params` clamps values to the ranges in `OPENSCAD_SPEC.md`.
+- `POST /api/cad/generate` accepts explicit `robot_spec` and `motion_params`.
+- `POST /api/cad/generate` also works with missing body by using demo inputs.
+- `/tmp/robot.scad` is written on generation.
+- `backend/static/robot_current.stl` is written on generation.
+- `GET /api/cad/stl` returns the current STL with an STL-compatible content type.
+- If OpenSCAD is missing or fails, the endpoint still returns a placeholder STL and logs the fallback.
+
+### Backend Test Steps
+
+1. Start the backend:
+
+```bash
+cd backend
+uvicorn main:app --reload --host 0.0.0.0 --port 8000
+```
+
+2. Generate CAD from explicit inputs:
+
+```bash
+curl -X POST http://localhost:8000/api/cad/generate \
+  -H "Content-Type: application/json" \
+  -d '{"robot_spec":{"task":"pick boxes","payload_kg":2.5,"mounted":true,"reach_cm":100,"dof":4,"gripper_type":"parallel","notes":"demo"},"motion_params":{"max_reach_cm":98,"avg_joint_angles_deg":[45,90,60,20],"grip_aperture_cm":8.5,"motion_speed":"slow","endpoint_height_cm":72,"reps_detected":3}}'
+```
+
+3. Confirm the response includes `status`, `stl_url`, and `params_used`.
+4. Confirm key params are present: `arm_length_m`, `gripper_width_m`, `dof`, `mounted`, `gripper_type`, `link_radius_m`, and `base_radius_m`.
+5. Confirm files exist:
+
+```bash
+test -f /tmp/robot.scad
+test -f backend/static/robot_current.stl
+```
+
+6. Verify STL endpoint:
+
+```bash
+curl -I http://localhost:8000/api/cad/stl
+curl http://localhost:8000/api/cad/stl | head
+```
+
+7. Generate CAD with an empty body and confirm fallback demo inputs still produce an STL:
+
+```bash
+curl -X POST http://localhost:8000/api/cad/generate \
+  -H "Content-Type: application/json" \
+  -d '{}'
+```
+
+8. If OpenSCAD is installed, confirm the real compiler path:
+
+```bash
+openscad --version
+```
+
+### Optional Frontend Debug Test Steps
+
+1. Start the frontend:
+
+```bash
+cd frontend
+npm run dev
+```
+
+2. Open `http://localhost:3000/cad-debug` if that page was created.
+3. Click Generate Demo CAD.
+4. Confirm returned params are visible.
+5. Click the STL link and confirm a file opens or downloads.
+
+### Integration Handoff Checks
+
+- Plan Mode's `robot_spec` can be passed directly into `/api/cad/generate`.
+- Capture's `motion_params` can be passed directly into `/api/cad/generate`.
+- Sim can load `backend/static/robot_current.stl` after generation.
+- Export can return the same `backend/static/robot_current.stl` through `/api/export/stl`.
+- Correction changes from `/api/sim/correct` should use the same parameter naming so CAD can regenerate without a translation layer.
+- After all slices merge, the path `/plan -> /capture -> /api/cad/generate -> /sim -> /export` should not require shape changes.
+

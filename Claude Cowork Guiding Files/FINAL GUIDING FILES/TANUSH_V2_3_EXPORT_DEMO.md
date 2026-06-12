@@ -136,3 +136,75 @@ Manual browser check:
 - Real sim scoring.
 - Ayan's pages.
 
+## What Success Looks Like
+
+This slice is successful when the product can always produce a judge-ready export screen: a downloadable STL, an Analog Devices BOM, and Backboard-style explanations, even if upstream slices are still using fallback data.
+
+### Solo Success Criteria
+
+- `GET /api/export/bom` returns a non-empty list of BOM items.
+- Every BOM item includes `category`, `part_number`, `description`, `justification`, `quantity`, and `datasheet_url`.
+- `GET /api/export/backboard` returns a non-empty list of explanations.
+- Every explanation includes `component`, `value`, and `reason`.
+- `GET /api/export/stl` returns a valid STL file or a safe placeholder STL.
+- The frontend `/export` page loads BOM and Backboard data in parallel.
+- The export page works when Plan Mode, CAD, and Sim have not run yet.
+- Copy BOM puts valid JSON on the clipboard.
+- Download STL opens or downloads the backend STL URL.
+
+### Backend Test Steps
+
+1. Start the backend:
+
+```bash
+cd backend
+uvicorn main:app --reload --host 0.0.0.0 --port 8000
+```
+
+2. Verify BOM:
+
+```bash
+curl http://localhost:8000/api/export/bom
+```
+
+3. Confirm the BOM contains at least three useful electronics entries and at least one Analog Devices-style sensing/control part.
+4. Verify Backboard explanations:
+
+```bash
+curl http://localhost:8000/api/export/backboard
+```
+
+5. Confirm explanations mention design choices such as reach, payload, DOF, gripper, mounting, or sim validation.
+6. Verify STL response:
+
+```bash
+curl -I http://localhost:8000/api/export/stl
+curl http://localhost:8000/api/export/stl | head
+```
+
+7. Confirm the STL starts with `solid` or returns a valid binary STL response.
+
+### Frontend Test Steps
+
+1. Start the frontend:
+
+```bash
+cd frontend
+npm run dev
+```
+
+2. Open `http://localhost:3000/export`.
+3. Confirm the Backboard panel renders explanation cards.
+4. Confirm the ADI panel renders a readable BOM table or cards.
+5. Click Copy BOM and paste into a text editor; it should be valid JSON.
+6. Click Download STL; it should open or download from the backend.
+7. Stop the backend and refresh `/export`; the page should still show mock export data with a clear non-crashing state.
+
+### Integration Handoff Checks
+
+- If Plan Mode has saved `robot_spec`, export should use it when available or gracefully fall back.
+- If CAD has generated `backend/static/robot_current.stl`, `/api/export/stl` should return that exact file.
+- If Sim has produced correction changes or scores, Backboard explanations should be able to include them without changing the response shape.
+- The frontend must consume export endpoints only through `frontend/lib/api.ts`.
+- After merging all slices, `/export` should be reachable from `/sim` and should not require demo data to be manually pasted.
+
