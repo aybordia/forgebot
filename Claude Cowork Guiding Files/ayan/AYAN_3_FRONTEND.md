@@ -1,7 +1,7 @@
-# AYAN_3.md — Frontend: Sim Viewer, Correction Console, Export, Final Polish
+# AYAN_3_FRONTEND.md — Frontend Phase 3: Sim Viewer, Correction Console, Export, Final Polish
 
 > **Read ARCHITECTURE.md before starting any work in this file.**
-> **Prerequisites: AYAN_1.md and AYAN_2.md must be fully complete.**
+> **Prerequisites: AYAN_1_FRONTEND.md and TANUSH_2_FRONTEND.md (frontend phases 1 and 2) must be fully complete.**
 > **Hackathon context: working demo over perfect code. Move fast.**
 > **After every major step: `git add -A && git commit -m "<message>" && git push origin frontend`**
 
@@ -677,14 +677,14 @@ git add -A && git commit -m "feat(frontend): SimViewer, CorrectionConsole, ADIPa
 1. Both push final commits to your branches
 2. On GitHub: open a PR from `frontend` into `backend` (or both into `main`)
 3. Open Claude Code pointed at the merged repo
-4. Say: **"Read ARCHITECTURE.md, TANUSH_3.md, and AYAN_3.md. The backend branch and frontend branch have been merged. Identify any integration issues between them — endpoint URL mismatches, response format differences, WebSocket message format differences, import errors — and fix them all."**
+4. Say: **"Read ARCHITECTURE.md, TANUSH_3_BACKEND.md, and AYAN_3_FRONTEND.md. The backend branch and frontend branch have been merged. Identify any integration issues between them — endpoint URL mismatches, response format differences, WebSocket message format differences, import errors — and fix them all."**
 5. Claude Code does a final integration pass
 6. Run full end-to-end demo flow and verify it works
 7. Final push to `main`
 
 ---
 
-## ✅ Success Criteria — AYAN_3 is Done When:
+## ✅ Success Criteria — AYAN_3_FRONTEND is Done When:
 
 - [ ] `/sim` page loads and WebSocket connects to backend
 - [ ] Three.js canvas shows live JPEG frames from MuJoCo at ~20fps

@@ -1,7 +1,7 @@
-# AYAN_2.md — Frontend: Plan Mode, QR Panel, Mobile Capture
+# TANUSH_2_FRONTEND.md — Frontend Phase 2: Plan Mode, QR Panel, Mobile Capture
 
 > **Read ARCHITECTURE.md before starting any work in this file.**
-> **Prerequisites: AYAN_1.md must be fully complete. All lib files exist and work.**
+> **Prerequisites: AYAN_1_FRONTEND.md (Ayan's frontend phase 1) must be fully complete. All lib files exist and work.**
 > **Hackathon context: working demo over perfect code. Move fast.**
 > **After every major step: `git add -A && git commit -m "<message>" && git push origin frontend`**
 
@@ -561,7 +561,7 @@ git add -A && git commit -m "feat(frontend): PlanMode, QRPanel, MobileCapture, c
 
 ---
 
-## ✅ Success Criteria — AYAN_2 is Done When:
+## ✅ Success Criteria — TANUSH_2_FRONTEND is Done When:
 
 - [ ] Plan Mode conversation flows end-to-end: first question appears on mount, each reply plays via ElevenLabs (or browser TTS), spec JSON card appears after ~5 exchanges
 - [ ] Mic button toggles (red pulsing when active), captured speech auto-sends
@@ -574,4 +574,4 @@ git add -A && git commit -m "feat(frontend): PlanMode, QRPanel, MobileCapture, c
 - [ ] Desktop capture page status cards update when `getScanStatus()` / `getMotionStatus()` return `loaded: true`
 - [ ] All changes committed and pushed to `frontend` branch
 
-**When all boxes are checked, move to AYAN_3.md.**
+**When all boxes are checked, hand the frontend back to Ayan for AYAN_3_FRONTEND.md and move yourself to TANUSH_3_BACKEND.md.**

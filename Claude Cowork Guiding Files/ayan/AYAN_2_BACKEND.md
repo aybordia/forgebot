@@ -1,7 +1,7 @@
-# TANUSH_2.md — Backend: Pipeline A, Pipeline B, Plan Mode, CAD Generator
+# AYAN_2_BACKEND.md — Backend Phase 2: Pipeline A, Pipeline B, Plan Mode, CAD Generator
 
 > **Read ARCHITECTURE.md before starting any work in this file.**
-> **Prerequisites: TANUSH_1.md must be fully complete. FastAPI skeleton is running.**
+> **Prerequisites: TANUSH_1_BACKEND.md (Tanush's backend phase 1) must be fully complete. FastAPI skeleton is running.**
 > **Hackathon context: working demo over perfect code. Move fast.**
 > **After every major step: `git add -A && git commit -m "<message>" && git push origin backend`**
 
@@ -9,7 +9,7 @@
 
 ## What You Are Building in This File
 
-Replace every stub route from TANUSH_1 with real implementations:
+Replace every stub route from TANUSH_1_BACKEND with real implementations:
 
 1. **`pipeline_a.py`** — `.obj` upload → trimesh mesh cleaning → MuJoCo mesh loading
 2. **`pipeline_b.py`** — video upload → MediaPipe GPU pose extraction → motion parameters JSON
@@ -581,7 +581,7 @@ app.include_router(pipeline_a_router, prefix="/api/scan")
 app.include_router(pipeline_b_router, prefix="/api")
 ```
 
-Keep the remaining stub routes (sim, export) as inline stubs for now — those get replaced in TANUSH_3.
+Keep the remaining stub routes (sim, export) as inline stubs for now — those get replaced in TANUSH_3_BACKEND.
 
 Add a `POST /api/cad/generate` route inline (since `cad_generator.py` isn't a router — it's a utility module):
 
@@ -640,7 +640,7 @@ git add -A && git commit -m "feat(backend): Pipeline A, B, plan_mode, cad_genera
 
 ---
 
-## ✅ Success Criteria — TANUSH_2 is Done When:
+## ✅ Success Criteria — AYAN_2_BACKEND is Done When:
 
 - [ ] `POST /api/plan/chat` with a real message returns a Mistral response (not a stub)
 - [ ] `POST /api/omi-webhook` with a transcript returns a Mistral response
@@ -651,4 +651,4 @@ git add -A && git commit -m "feat(backend): Pipeline A, B, plan_mode, cad_genera
 - [ ] Terminal logs show each step completing (no silent failures)
 - [ ] All changes committed and pushed to `backend` branch
 
-**When all boxes are checked, move to TANUSH_3.md.**
+**When all boxes are checked, move to AYAN_3_FRONTEND.md — you switch back to the frontend, while Tanush picks up backend phase 3 in TANUSH_3_BACKEND.md.**

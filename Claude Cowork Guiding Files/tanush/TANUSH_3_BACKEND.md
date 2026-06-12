@@ -1,7 +1,7 @@
-# TANUSH_3.md — Backend: Sim WebSocket, Correction Loop, ADI BOM, Backboard, Export
+# TANUSH_3_BACKEND.md — Backend Phase 3: Sim WebSocket, Correction Loop, ADI BOM, Backboard, Export
 
 > **Read ARCHITECTURE.md before starting any work in this file.**
-> **Prerequisites: TANUSH_1.md and TANUSH_2.md must be fully complete.**
+> **Prerequisites: TANUSH_1_BACKEND.md and AYAN_2_BACKEND.md (backend phases 1 and 2) must be fully complete.**
 > **Hackathon context: working demo over perfect code. Move fast.**
 > **After every major step: `git add -A && git commit -m "<message>" && git push origin backend`**
 
@@ -601,16 +601,16 @@ git add -A && git commit -m "feat(backend): sim WebSocket, correction loop, ADI 
 ## Merge Instructions (Run After Ayan Finishes)
 
 1. Both push final commits to your branches
-2. On GitHub: open a PR from `frontend` into `backend` (Ayan's code into yours)
+2. On GitHub: open a PR from `frontend` into `backend` (the frontend branch into the backend branch)
 3. Open Claude Code pointed at the merged repo
-4. Say: **"Read ARCHITECTURE.md, TANUSH_3.md, and AYAN_3.md. The backend branch and frontend branch have been merged. Identify any integration issues between them — endpoint URL mismatches, response format differences, WebSocket message format differences, import errors — and fix them all."**
+4. Say: **"Read ARCHITECTURE.md, TANUSH_3_BACKEND.md, and AYAN_3_FRONTEND.md. The backend branch and frontend branch have been merged. Identify any integration issues between them — endpoint URL mismatches, response format differences, WebSocket message format differences, import errors — and fix them all."**
 5. Claude Code does a final integration pass
 6. Run full end-to-end demo flow and verify it works
 7. Final push to `main`
 
 ---
 
-## ✅ Success Criteria — TANUSH_3 is Done When:
+## ✅ Success Criteria — TANUSH_3_BACKEND is Done When:
 
 - [ ] `/ws/sim` streams real MuJoCo JPEG frames (not black images) to browser DevTools
 - [ ] GPU monitor shows utilization spiking when sim runs (if GPU available)

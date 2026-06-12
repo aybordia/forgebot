@@ -1,4 +1,4 @@
-# AYAN_1.md — Frontend: Scaffold, Lib Layer, Landing Page
+# AYAN_1_FRONTEND.md — Frontend Phase 1: Scaffold, Lib Layer, Landing Page
 
 > **Read ARCHITECTURE.md before starting any work in this file.**
 > **Hackathon context: working demo over perfect code. Move fast.**
@@ -9,7 +9,7 @@
 
 ## Your Role
 
-You are building the entire Next.js frontend for Forgebot. Your teammate Tanush is building the Python backend on a separate branch called `backend`. You never touch files in `backend/`. Tanush never touches files in `frontend/`.
+You are building frontend phase 1 for Forgebot. The work is split 50-50 between you and Tanush across both stacks — you own frontend phase 1, backend phase 2, and frontend phase 3; Tanush owns backend phase 1, frontend phase 2, and backend phase 3. Frontend work always happens on the `frontend` branch and backend work on the `backend` branch. While working this file, you only touch files in `frontend/`.
 
 The shared contract is `ARCHITECTURE.md` — every API endpoint and WebSocket format defined there is what you call from the frontend. Build to that spec.
 
@@ -674,7 +674,7 @@ git add -A && git commit -m "feat(frontend): lib layer complete — api, speech,
 
 ---
 
-## ✅ Success Criteria — AYAN_1 is Done When:
+## ✅ Success Criteria — AYAN_1_FRONTEND is Done When:
 
 - [ ] `npm run dev` starts on port 3000 with no TypeScript errors
 - [ ] Landing page renders: "FORGEBOT" title, tagline, Begin button
@@ -686,4 +686,4 @@ git add -A && git commit -m "feat(frontend): lib layer complete — api, speech,
 - [ ] All lib files have no TypeScript errors
 - [ ] All changes committed and pushed to `frontend` branch
 
-**When all boxes are checked, move to AYAN_2.md.**
+**When all boxes are checked, move to AYAN_2_BACKEND.md — you switch to the backend, while Tanush picks up frontend phase 2 in TANUSH_2_FRONTEND.md.**

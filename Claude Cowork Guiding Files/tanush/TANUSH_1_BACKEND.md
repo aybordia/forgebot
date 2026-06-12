@@ -1,4 +1,4 @@
-# TANUSH_1.md — Backend: Repo Setup, FastAPI Skeleton, MuJoCo GPU
+# TANUSH_1_BACKEND.md — Backend Phase 1: Repo Setup, FastAPI Skeleton, MuJoCo GPU
 
 > **Read ARCHITECTURE.md before starting any work in this file.**
 > **Hackathon context: working demo over perfect code. Move fast.**
@@ -9,7 +9,7 @@
 
 ## Your Role
 
-You are building the entire Python backend for Forgebot. Your teammate Ayan is building the frontend on a separate branch called `frontend`. You never touch files in `frontend/`. Ayan never touches files in `backend/`.
+You are building backend phase 1 for Forgebot. The work is split 50-50 between you and Ayan across both stacks — you own backend phase 1, frontend phase 2, and backend phase 3; Ayan owns frontend phase 1, backend phase 2, and frontend phase 3. Backend work always happens on the `backend` branch and frontend work on the `frontend` branch. While working this file, you only touch files in `backend/`.
 
 The shared contract is `ARCHITECTURE.md` — every API endpoint and WebSocket format defined there is what Ayan's frontend will call. Build exactly to that spec.
 
@@ -356,7 +356,7 @@ git add -A && git commit -m "feat(backend): FastAPI skeleton with all stub route
 
 ---
 
-## ✅ Success Criteria — TANUSH_1 is Done When:
+## ✅ Success Criteria — TANUSH_1_BACKEND is Done When:
 
 - [ ] `uvicorn main:app --reload` starts with no errors
 - [ ] `curl http://localhost:8000/health` returns `{"status":"ok"}`
@@ -368,7 +368,7 @@ git add -A && git commit -m "feat(backend): FastAPI skeleton with all stub route
 - [ ] `nvidia-smi` monitor is open and visible
 - [ ] Everything committed and pushed to `backend` branch
 
-**When all boxes are checked, move to TANUSH_2.md.**
+**When all boxes are checked, move to TANUSH_2_FRONTEND.md — you switch to the frontend, while Ayan picks up backend phase 2 in AYAN_2_BACKEND.md.**
 
 ---
 
