@@ -7,16 +7,16 @@
 
 Claude Code must read and align to these files before editing:
 
-1. `Claude Cowork Guiding Files/ARCHITECTURE.md`
+1. `Claude Cowork Guiding Files/shared/ARCHITECTURE.md`
    - Use the full endpoint list in section 3 as the API contract.
    - Use the port map for local defaults.
-2. `Claude Cowork Guiding Files/FRONTEND_SPEC.md`
+2. `Claude Cowork Guiding Files/shared/FRONTEND_SPEC.md`
    - Use the global frontend rules, app router pages, and `lib/api.ts` fetch rule.
-3. `Claude Cowork Guiding Files/BACKEND_SPEC.md`
+3. `Claude Cowork Guiding Files/shared/BACKEND_SPEC.md`
    - Use the backend global rules and `main.py` app structure.
-4. `Claude Cowork Guiding Files/BUILD_ORDER.md`
+4. `Claude Cowork Guiding Files/shared/BUILD_ORDER.md`
    - Use setup commands only; ignore its old push-every-hour instruction unless the humans ask.
-5. `Claude Cowork Guiding Files/DEMO_SCRIPT.md`
+5. `Claude Cowork Guiding Files/shared/DEMO_SCRIPT.md`
    - Use the app's demo route order: `/plan`, `/capture`, `/sim`, `/export`.
 
 ## Ownership
@@ -197,4 +197,4 @@ npm run dev
 - `NEXT_PUBLIC_WS_URL` should default to `ws://localhost:8000`.
 - The route order must remain compatible with the demo: `/plan -> /capture -> /sim -> /export`.
 - After all slices merge, this foundation should disappear into the product instead of leaving duplicate placeholder UI.
-
+- Before marking the whole product done, also run `Claude Cowork Guiding Files/FINAL GUIDING FILES/FINAL_INTEGRATION_GATE.md`.

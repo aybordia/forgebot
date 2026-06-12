@@ -7,15 +7,15 @@
 
 Claude Code must read and align to these files before editing:
 
-1. `Claude Cowork Guiding Files/ARCHITECTURE.md`
+1. `Claude Cowork Guiding Files/shared/ARCHITECTURE.md`
    - Use section 3.1 for `/api/plan/chat`, `/api/omi-webhook`, `/api/plan/spec/{session_id}`, and `/api/plan/reset/{session_id}`.
    - Use section 6 for the `RobotSpec` fields and exact response shape.
-2. `Claude Cowork Guiding Files/BACKEND_SPEC.md`
+2. `Claude Cowork Guiding Files/shared/BACKEND_SPEC.md`
    - Use `plan_mode.py` models, `SYSTEM_PROMPT`, `get_ollama_response`, and `try_extract_spec`.
    - Follow the backend global rules: type hints, logging, Pydantic response models, temp files in `/tmp`.
-3. `Claude Cowork Guiding Files/FRONTEND_SPEC.md`
+3. `Claude Cowork Guiding Files/shared/FRONTEND_SPEC.md`
    - Use the `app/plan/page.tsx`, `components/PlanMode.tsx`, `lib/api.ts`, `lib/speech.ts`, and `lib/elevenlabs.ts` requirements.
-4. `Claude Cowork Guiding Files/DEMO_SCRIPT.md`
+4. `Claude Cowork Guiding Files/shared/DEMO_SCRIPT.md`
    - Use the Plan Mode demo language and the "Spec locked" flow as the user experience target.
 
 ## Ownership
@@ -205,4 +205,4 @@ npm run dev
 - The completed page should route to `/capture` if it exists, but must not fail if Ayan's capture slice is not implemented yet.
 - No component outside `frontend/lib/api.ts` should call the plan endpoints directly.
 - After merging with Ayan's capture slice, the full path `/plan -> /capture` should work without changing the spec shape.
-
+- Before marking the whole product done, also run `Claude Cowork Guiding Files/FINAL GUIDING FILES/FINAL_INTEGRATION_GATE.md`.

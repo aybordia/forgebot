@@ -7,16 +7,16 @@
 
 Claude Code must read and align to these files before editing:
 
-1. `Claude Cowork Guiding Files/ARCHITECTURE.md`
+1. `Claude Cowork Guiding Files/shared/ARCHITECTURE.md`
    - Use section 3.5 for export endpoints and response formats.
    - Use section 3.3 for STL URLs and CAD output references.
-2. `Claude Cowork Guiding Files/BACKEND_SPEC.md`
+2. `Claude Cowork Guiding Files/shared/BACKEND_SPEC.md`
    - Use `adi_agent.py`, `backboard.py`, static file, and response model expectations.
-3. `Claude Cowork Guiding Files/FRONTEND_SPEC.md`
+3. `Claude Cowork Guiding Files/shared/FRONTEND_SPEC.md`
    - Use `app/export/page.tsx`, `components/ADIPartsPanel.tsx`, and `components/BackboardPanel.tsx`.
-4. `Claude Cowork Guiding Files/OPENSCAD_SPEC.md`
+4. `Claude Cowork Guiding Files/shared/OPENSCAD_SPEC.md`
    - Use parameter names and generated STL expectations when explaining design choices.
-5. `Claude Cowork Guiding Files/DEMO_SCRIPT.md`
+5. `Claude Cowork Guiding Files/shared/DEMO_SCRIPT.md`
    - Use the sponsor callouts and export screen story as the target presentation.
 
 ## Ownership
@@ -207,4 +207,4 @@ npm run dev
 - If Sim has produced correction changes or scores, Backboard explanations should be able to include them without changing the response shape.
 - The frontend must consume export endpoints only through `frontend/lib/api.ts`.
 - After merging all slices, `/export` should be reachable from `/sim` and should not require demo data to be manually pasted.
-
+- Before marking the whole product done, also run `Claude Cowork Guiding Files/FINAL GUIDING FILES/FINAL_INTEGRATION_GATE.md`.

@@ -7,15 +7,15 @@
 
 Claude Code must read and align to these files before editing:
 
-1. `Claude Cowork Guiding Files/ARCHITECTURE.md`
+1. `Claude Cowork Guiding Files/shared/ARCHITECTURE.md`
    - Use section 3.2 for scan endpoints.
    - Use section 3.3 for motion upload and motion parameter format.
    - Use the phone/mobile part of the system diagram.
-2. `Claude Cowork Guiding Files/BACKEND_SPEC.md`
+2. `Claude Cowork Guiding Files/shared/BACKEND_SPEC.md`
    - Use `pipeline_a.py`, `pipeline_b.py`, temp file, async executor, and logging rules.
-3. `Claude Cowork Guiding Files/FRONTEND_SPEC.md`
+3. `Claude Cowork Guiding Files/shared/FRONTEND_SPEC.md`
    - Use `app/capture/page.tsx`, `components/QRPanel.tsx`, and `components/MobileCapture.tsx`.
-4. `Claude Cowork Guiding Files/DEMO_SCRIPT.md`
+4. `Claude Cowork Guiding Files/shared/DEMO_SCRIPT.md`
    - Use the environment scan and motion capture demo flow, including prerecorded fallback.
 
 ## Ownership
@@ -230,4 +230,4 @@ npm run dev
 - Plan Mode is not required to enter capture, but when `robot_spec` exists in local storage, capture should preserve it.
 - The mobile page must talk to the backend URL, not the Next.js dev server, when used from a phone.
 - After all slices merge, `/capture -> /sim` should work with no manual state edits.
-
+- Before marking the whole product done, also run `Claude Cowork Guiding Files/FINAL GUIDING FILES/FINAL_INTEGRATION_GATE.md`.

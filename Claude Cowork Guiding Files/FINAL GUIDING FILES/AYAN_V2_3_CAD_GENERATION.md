@@ -7,17 +7,17 @@
 
 Claude Code must read and align to these files before editing:
 
-1. `Claude Cowork Guiding Files/ARCHITECTURE.md`
+1. `Claude Cowork Guiding Files/shared/ARCHITECTURE.md`
    - Use section 3.3 for `/api/cad/generate` and `/api/cad/stl`.
    - Use the RobotSpec and MotionParams shapes that feed CAD generation.
-2. `Claude Cowork Guiding Files/OPENSCAD_SPEC.md`
+2. `Claude Cowork Guiding Files/shared/OPENSCAD_SPEC.md`
    - Copy the OpenSCAD templates and parameter names exactly unless fixing a syntax issue.
    - Use the Python to OpenSCAD generation approach.
-3. `Claude Cowork Guiding Files/BACKEND_SPEC.md`
+3. `Claude Cowork Guiding Files/shared/BACKEND_SPEC.md`
    - Use `cad_generator.py`, static file, temp file, logging, type hint, and executor rules.
-4. `Claude Cowork Guiding Files/FRONTEND_SPEC.md`
+4. `Claude Cowork Guiding Files/shared/FRONTEND_SPEC.md`
    - Use CAD URLs and export/capture handoff expectations.
-5. `Claude Cowork Guiding Files/DEMO_SCRIPT.md`
+5. `Claude Cowork Guiding Files/shared/DEMO_SCRIPT.md`
    - Use the "generated robot CAD drops into the digital twin" moment as the target behavior.
 
 ## Ownership
@@ -204,4 +204,4 @@ npm run dev
 - Export can return the same `backend/static/robot_current.stl` through `/api/export/stl`.
 - Correction changes from `/api/sim/correct` should use the same parameter naming so CAD can regenerate without a translation layer.
 - After all slices merge, the path `/plan -> /capture -> /api/cad/generate -> /sim -> /export` should not require shape changes.
-
+- Before marking the whole product done, also run `Claude Cowork Guiding Files/FINAL GUIDING FILES/FINAL_INTEGRATION_GATE.md`.

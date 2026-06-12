@@ -7,17 +7,17 @@
 
 Claude Code must read and align to these files before editing:
 
-1. `Claude Cowork Guiding Files/ARCHITECTURE.md`
+1. `Claude Cowork Guiding Files/shared/ARCHITECTURE.md`
    - Use section 3.4 for `/api/sim/load`, `/api/sim/correct`, `/api/sim/stop`, `/api/sim/status`, and `/ws/sim`.
    - Use the WebSocket status JSON contract: `fps`, `step`, `score`, `gpu_util_pct`.
-2. `Claude Cowork Guiding Files/BACKEND_SPEC.md`
+2. `Claude Cowork Guiding Files/shared/BACKEND_SPEC.md`
    - Use the backend global rules and route/model expectations.
    - Use `main.py` router wiring conventions.
-3. `Claude Cowork Guiding Files/FRONTEND_SPEC.md`
+3. `Claude Cowork Guiding Files/shared/FRONTEND_SPEC.md`
    - Use `app/sim/page.tsx`, `components/SimViewer.tsx`, and `components/CorrectionConsole.tsx`.
-4. `Claude Cowork Guiding Files/OPENSCAD_SPEC.md`
+4. `Claude Cowork Guiding Files/shared/OPENSCAD_SPEC.md`
    - Use the CAD parameter names when correction changes are returned.
-5. `Claude Cowork Guiding Files/DEMO_SCRIPT.md`
+5. `Claude Cowork Guiding Files/shared/DEMO_SCRIPT.md`
    - Use the GPU spike and "extend the reach and widen the grip" correction as the demo target.
 
 ## Ownership
@@ -226,4 +226,4 @@ npm run dev
 - The WebSocket status shape must match `frontend/lib/websocket.ts` and `SimViewer`.
 - Correction `param_changes` must be compatible with the CAD parameter names from `OPENSCAD_SPEC.md`.
 - After merging all slices, the path `/capture -> /sim -> correction -> /export` should not require any response shape changes.
-
+- Before marking the whole product done, also run `Claude Cowork Guiding Files/FINAL GUIDING FILES/FINAL_INTEGRATION_GATE.md`.
