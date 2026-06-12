@@ -25,10 +25,11 @@ Claude Code must read and align to these files before editing:
 Tanush owns this complete vertical slice:
 
 - Backend sim control, WebSocket streaming, and correction endpoint.
+- Backboard correction logging with `user_id`, correction text, params before, and params after.
 - Frontend sim viewer and correction console.
 - Placeholder frames and placeholder STL support so the slice works before CAD, scan, and motion are real.
 
-Do not edit Plan Mode, capture upload, ADI, Backboard, or export pages except for tiny placeholders needed for navigation.
+Do not edit Plan Mode, capture upload, ADI, design rationale, or export pages except for tiny placeholders needed for navigation.
 
 ## Why This Slice Is Independent
 
@@ -45,6 +46,7 @@ Backend:
 
 - `backend/main.py`
 - `backend/sim.py`
+- `backend/backboard_memory.py`
 - `backend/static/robot_current.stl`
 - `backend/requirements.txt`
 
@@ -75,9 +77,10 @@ Frontend:
    - Send JPEG frames as binary.
    - Remove dead clients safely.
 5. Implement `/api/sim/correct`.
-   - Accept `{ "correction": "extend the reach and widen the grip" }`.
+   - Accept `{ "correction": "extend the reach and widen the grip", "user_id": "user_abc123" }`.
    - Return `param_changes` using OpenSCAD/CAD names from `OPENSCAD_SPEC.md`, for example `arm_length_m` and `gripper_width_m`.
-   - If Ollama or CAD generation is unavailable, return deterministic demo changes.
+   - Log each correction to Backboard memory via `backboard_memory.log_correction(user_id, correction, params_before, params_after)`.
+   - If Backboard, Ollama, or CAD generation is unavailable, return deterministic demo changes.
 6. Implement `/api/sim/stop` and `/api/sim/status`.
    - Stop the loop cleanly.
    - Return current running state, fps, step, and best score.
@@ -113,7 +116,7 @@ Backend:
 cd backend && uvicorn main:app --reload --host 0.0.0.0 --port 8000
 curl -X POST http://localhost:8000/api/sim/load -H "Content-Type: application/json" -d '{}'
 curl http://localhost:8000/api/sim/status
-curl -X POST http://localhost:8000/api/sim/correct -H "Content-Type: application/json" -d '{"correction":"extend the reach and widen the grip"}'
+curl -X POST http://localhost:8000/api/sim/correct -H "Content-Type: application/json" -d '{"correction":"extend the reach and widen the grip","user_id":"user-sim-test"}'
 ```
 
 Frontend:
@@ -149,7 +152,7 @@ This slice is successful when the product can start a simulation, stream visual 
 - `/ws/sim` sends status text messages with `fps`, `step`, `score`, and `gpu_util_pct`.
 - `/ws/sim` sends binary JPEG frames or a documented placeholder frame stream.
 - `GET /api/sim/status` reflects whether the sim is running.
-- `POST /api/sim/correct` returns deterministic `param_changes` even if Ollama or CAD is unavailable.
+- `POST /api/sim/correct` logs correction memory when Backboard is available and returns deterministic `param_changes` even if Backboard, Ollama, or CAD is unavailable.
 - `POST /api/sim/stop` stops the loop and leaves the backend able to start again.
 - The frontend `/sim` page remains usable if the backend is offline by showing mock status or a clear connection state.
 
@@ -181,7 +184,7 @@ curl http://localhost:8000/api/sim/status
 ```bash
 curl -X POST http://localhost:8000/api/sim/correct \
   -H "Content-Type: application/json" \
-  -d '{"correction":"extend the reach and widen the grip"}'
+  -d '{"correction":"extend the reach and widen the grip","user_id":"user-sim-test"}'
 ```
 
 5. Confirm the correction response includes `status`, `param_changes`, and `new_stl_url`.
@@ -225,5 +228,6 @@ npm run dev
 - If Ayan's capture slice has produced `/tmp/environment_clean.stl`, the sim should include or safely ignore it without failing.
 - The WebSocket status shape must match `frontend/lib/websocket.ts` and `SimViewer`.
 - Correction `param_changes` must be compatible with the CAD parameter names from `OPENSCAD_SPEC.md`.
+- Correction memory must be queryable later through Plan Mode context for the same `user_id`.
 - After merging all slices, the path `/capture -> /sim -> correction -> /export` should not require any response shape changes.
 - Before marking the whole product done, also run `Claude Cowork Guiding Files/FINAL GUIDING FILES/FINAL_INTEGRATION_GATE.md`.

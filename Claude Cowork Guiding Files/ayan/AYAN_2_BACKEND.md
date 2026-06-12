@@ -13,7 +13,7 @@ Replace every stub route from TANUSH_1_BACKEND with real implementations:
 
 1. **`pipeline_a.py`** — `.obj` upload → trimesh mesh cleaning → MuJoCo mesh loading
 2. **`pipeline_b.py`** — video upload → MediaPipe GPU pose extraction → motion parameters JSON
-3. **`plan_mode.py`** — Ollama Mistral conversation loop → robot spec JSON output
+3. **`plan_mode.py`** — Backboard memory conversation loop → robot spec JSON output
 4. **`cad_generator.py`** — robot spec + motion params → OpenSCAD .scad → .stl via CLI
 5. **Update `main.py`** — wire in real implementations, replace stubs with real router imports
 
@@ -21,28 +21,30 @@ All outputs should be logged to console so you can verify them without the front
 
 ---
 
-## Step 1: `backend/plan_mode.py` — Ollama Conversation Loop
+## Step 1: `backend/plan_mode.py` — Backboard Memory Conversation Loop
 
 This is the most important module for the demo. Build it first.
 
 ### Module-level state (at the top of the file)
 
 ```python
-import logging, json, re, requests
+import logging, json, os, re, requests
+from backboard import AsyncClient
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 from typing import Optional
 
 logger = logging.getLogger(__name__)
 
-# In-memory conversation storage — no DB needed
-# Key: session_id, Value: list of {"role": "user"|"assistant", "content": str}
+# Short-lived fallback/debug conversation storage only. Backboard is persistent memory.
 conversation_history: dict[str, list[dict]] = {}
 
 # Key: session_id, Value: robot spec dict or None
 robot_specs: dict[str, dict | None] = {}
 
 OLLAMA_CHAT_URL = "http://localhost:11434/api/chat"
+BACKBOARD_API_KEY = os.getenv("BACKBOARD_API_KEY", "")
+backboard_client = AsyncClient(api_key=BACKBOARD_API_KEY) if BACKBOARD_API_KEY else None
 ```
 
 ### System prompt — copy verbatim, do not paraphrase
@@ -63,24 +65,29 @@ Ask about these topics in order, one at a time:
 After you have answers to all 5 questions, output the JSON spec immediately."""
 ```
 
-### `get_ollama_response(session_id, user_message)` function
+### `plan_mode_message(session_id, user_id, user_message)` function
 
 Behavior:
-1. If `session_id` not in `conversation_history`: initialize to empty list, set `robot_specs[session_id] = None`
-2. Append `{"role": "user", "content": user_message}` to history
-3. Build request payload:
+1. If Backboard is available: send through `AsyncClient.send_message(..., memory="Auto", user_id=req.user_id)`. If unavailable: initialize fallback state and set `robot_specs[session_id] = None`
+2. Backboard call must use `memory="Auto"` so it remembers user preferences and prior builds.
+3. If Backboard is unavailable, append `{"role": "user", "content": user_message}` to fallback history.
+4. Build fallback Ollama request payload:
    ```python
    payload = {
        "model": "mistral",
-       "messages": [{"role": "system", "content": SYSTEM_PROMPT}] + conversation_history[session_id],
+       "messages": [{"role": "system", "content": SYSTEM_PROMPT}] + conversation_history[session_id],  # fallback only
        "stream": False
    }
    ```
-4. POST to `OLLAMA_CHAT_URL` with `timeout=30`
-5. Extract: `reply = response.json()["message"]["content"]`
-6. Append `{"role": "assistant", "content": reply}` to history
-7. Return `reply`
-8. If requests throws `ConnectionError`: raise `HTTPException(503, "Ollama not running — run: ollama serve")`
+5. POST to `OLLAMA_CHAT_URL` with `timeout=30`
+6. Extract: `reply = response.json()["message"]["content"]`
+7. Append `{"role": "assistant", "content": reply}` to fallback history
+8. Return `reply`
+9. If Backboard and Ollama both fail, return deterministic demo questions/spec so the demo never blocks.
+
+### `get_user_context(user_id)` function
+
+Call Backboard with `message="Summarize what this user has built before and their preferences."`, `memory="Auto"`, and `user_id=user_id`. Return an empty summary if Backboard is unavailable.
 
 ### `try_extract_spec(reply)` function
 
@@ -98,15 +105,21 @@ Behavior:
 class ChatRequest(BaseModel):
     message: str
     session_id: str = "default"
+    user_id: str = "default-user"
 
 class OmiWebhookRequest(BaseModel):
     transcript: str
     session_id: str = "omi-default"
+    user_id: str = "default-user"
 
 class ChatResponse(BaseModel):
     reply: str
     is_complete: bool
     robot_spec: Optional[dict] = None
+
+class UserContextResponse(BaseModel):
+    has_history: bool
+    summary: str = ""
 ```
 
 ### Routes
@@ -116,7 +129,7 @@ router = APIRouter()
 
 @router.post("/chat", response_model=ChatResponse)
 async def plan_chat(req: ChatRequest) -> ChatResponse:
-    reply = get_ollama_response(req.session_id, req.message)
+    reply = await plan_mode_message(req.session_id, req.user_id, req.message)
     spec = try_extract_spec(reply)
     if spec:
         robot_specs[req.session_id] = spec
@@ -125,8 +138,8 @@ async def plan_chat(req: ChatRequest) -> ChatResponse:
 
 @router.post("/omi-webhook", response_model=ChatResponse)
 async def omi_webhook(req: OmiWebhookRequest) -> ChatResponse:
-    # Identical logic, just maps transcript field
-    reply = get_ollama_response(req.session_id, req.transcript)
+    # Identical logic, just maps transcript field and preserves user_id
+    reply = await plan_mode_message(req.session_id, req.user_id, req.transcript)
     spec = try_extract_spec(reply)
     if spec:
         robot_specs[req.session_id] = spec
@@ -136,9 +149,14 @@ async def omi_webhook(req: OmiWebhookRequest) -> ChatResponse:
 async def get_spec(session_id: str) -> dict:
     return {"spec": robot_specs.get(session_id)}
 
+@router.get("/context/{user_id}", response_model=UserContextResponse)
+async def get_context(user_id: str) -> UserContextResponse:
+    summary = await get_user_context(user_id)
+    return UserContextResponse(has_history=bool(summary), summary=summary)
+
 @router.delete("/reset/{session_id}")
 async def reset_session(session_id: str) -> dict:
-    conversation_history.pop(session_id, None)
+    conversation_history.pop(session_id, None)  # local fallback only; do not delete Backboard memory
     robot_specs.pop(session_id, None)
     return {"status": "reset"}
 ```
@@ -430,7 +448,7 @@ from typing import Optional
 
 logger = logging.getLogger(__name__)
 
-# Shared state — sim.py and backboard.py import these
+# Shared state — sim.py and design_rationale.py import these
 last_params_used: dict = {}
 last_motion_params: dict = {}
 
@@ -642,8 +660,8 @@ git add -A && git commit -m "feat(backend): Pipeline A, B, plan_mode, cad_genera
 
 ## ✅ Success Criteria — AYAN_2_BACKEND is Done When:
 
-- [ ] `POST /api/plan/chat` with a real message returns a Mistral response (not a stub)
-- [ ] `POST /api/omi-webhook` with a transcript returns a Mistral response
+- [ ] `POST /api/plan/chat` with a real message and `user_id` returns a Backboard-aware response or safe fallback
+- [ ] `POST /api/omi-webhook` with a transcript and `user_id` returns a Backboard-aware response or safe fallback
 - [ ] After 5 messages, `is_complete: true` and a real robot spec JSON appears in the response
 - [ ] `POST /api/scan/upload` with a .obj file returns real mesh bounds
 - [ ] `POST /api/motion/upload` with a video returns real motion params (or defaults if no pose detected)

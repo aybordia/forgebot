@@ -37,7 +37,8 @@ touch backend/pipeline_b.py
 touch backend/sim.py
 touch backend/cad_generator.py
 touch backend/adi_agent.py
-touch backend/backboard.py
+touch backend/design_rationale.py
+touch backend/backboard_memory.py
 touch backend/requirements.txt
 touch backend/.env
 touch robot_templates/arm_4dof.scad
@@ -75,6 +76,7 @@ scipy==1.13.0
 mujoco==3.1.3
 mujoco-mjx==3.1.3
 ollama==0.2.0
+backboard
 ```
 
 Install:
@@ -137,6 +139,7 @@ OLLAMA_HOST=http://localhost:11434
 STATIC_DIR=./static
 ROBOT_TEMPLATES_DIR=../robot_templates
 OPENSCAD_BIN=openscad
+BACKBOARD_API_KEY=your_key_here
 ```
 
 ---
@@ -177,7 +180,7 @@ Build a fully stubbed FastAPI application. Every route from ARCHITECTURE.md must
 
 **`GET /api/export/bom`** → hardcoded BOM list with 3 ADI parts (see ARCHITECTURE.md section 3.5 for format)
 
-**`GET /api/export/backboard`** → hardcoded explanations list with 3 entries (see ARCHITECTURE.md section 3.5 for format)
+**`GET /api/export/rationale`** → hardcoded explanations list with 3 entries (see ARCHITECTURE.md section 3.5 for format)
 
 **`GET /api/export/stl`** → FileResponse or 404
 

@@ -13,7 +13,7 @@
 2. **`app/sim/page.tsx`** — Sim viewer page with GPU badge and top bar
 3. **`components/CorrectionConsole.tsx`** — Voice/text correction input
 4. **`components/ADIPartsPanel.tsx`** — Analog Devices BOM table
-5. **`components/BackboardPanel.tsx`** — Design explanation cards
+5. **`components/DesignRationalePanel.tsx`** — Design rationale cards
 6. **`app/export/page.tsx`** — Export page with all three artifacts
 7. **Global polish** — consistent UI across all pages, sponsor footer
 
@@ -253,7 +253,7 @@ async function handleSendCorrection(text: string) {
   setIsProcessing(true)
   
   try {
-    const res = await correctSim(text)  // from lib/api.ts
+    const res = await correctSim(text, userId)  // from lib/api.ts
     
     // Format summary of what changed
     const changes = Object.entries(res.param_changes || {})
@@ -444,12 +444,12 @@ return (
 
 ---
 
-## Step 5: `frontend/components/BackboardPanel.tsx`
+## Step 5: `frontend/components/DesignRationalePanel.tsx`
 
 ### Props
 
 ```tsx
-interface BackboardPanelProps {
+interface DesignRationalePanelProps {
   explanations: Explanation[] | null
 }
 ```
@@ -464,7 +464,7 @@ return (
     <div className="flex items-center gap-2">
       <span className="text-sm font-semibold text-gray-300">📋 Design Literacy</span>
       <span className="text-xs text-gray-600 bg-gray-900 px-2 py-0.5 rounded-full">
-        powered by Backboard
+        design rationale
       </span>
     </div>
     
@@ -512,12 +512,12 @@ const backendUrl = process.env.NEXT_PUBLIC_BACKEND_URL || "http://localhost:8000
 ```tsx
 useEffect(() => {
   async function fetchExport() {
-    const [bomRes, backboardRes] = await Promise.all([
+    const [bomRes, rationaleRes] = await Promise.all([
       getBOM(),
-      getBackboard()
+      getDesignRationale()
     ])
     setBom(bomRes.bom)
-    setExplanations(backboardRes.explanations)
+    setExplanations(rationaleRes.explanations)
   }
   fetchExport()
 }, [])
@@ -575,7 +575,7 @@ function copyBOM() {
   
   {/* Two-column layout */}
   <div className="grid md:grid-cols-2 gap-8">
-    <BackboardPanel explanations={explanations} />
+    <DesignRationalePanel explanations={explanations} />
     <ADIPartsPanel bom={bom} />
   </div>
 </main>
@@ -611,7 +611,7 @@ Below the `{children}`, inside the body, add a global footer:
   <span className="text-xs text-gray-700">·</span>
   <span className="text-xs text-gray-700">Vercel</span>
   <span className="text-xs text-gray-700">·</span>
-  <span className="text-xs text-gray-700">Backboard</span>
+  <span className="text-xs text-gray-700">Design Rationale</span>
 </footer>
 ```
 
@@ -659,7 +659,7 @@ When Tanush says "Backend is ready at [tunnel URL]":
    - Talk through 5 questions → spec appears → Continue
    - `/capture` → QR shows → phone opens mobile page → upload .obj and video
    - `/sim` → sim loads → WebSocket connects → frames appear → speak correction → sim updates
-   - `/export` → BOM and Backboard appear → STL downloads
+   - `/export` → BOM and Design rationale appears → STL downloads
 
 4. Fix any integration issues found (endpoint URL mismatches, response shape differences)
 
@@ -667,7 +667,7 @@ When Tanush says "Backend is ready at [tunnel URL]":
 
 Commit everything:
 ```bash
-git add -A && git commit -m "feat(frontend): SimViewer, CorrectionConsole, ADIPartsPanel, BackboardPanel, export page — FRONTEND COMPLETE" && git push origin frontend
+git add -A && git commit -m "feat(frontend): SimViewer, CorrectionConsole, ADIPartsPanel, DesignRationalePanel, export page — FRONTEND COMPLETE" && git push origin frontend
 ```
 
 ---
@@ -693,7 +693,7 @@ git add -A && git commit -m "feat(frontend): SimViewer, CorrectionConsole, ADIPa
 - [ ] Correction console: `Ctrl+Space` keyboard shortcut toggles listening
 - [ ] After correction: canvas shows changed robot (if backend is running)
 - [ ] `/export` page: BOM table shows ADI parts with category color badges and datasheet links
-- [ ] `/export` page: Backboard panel shows design explanations for all parameters
+- [ ] `/export` page: Design Rationale panel shows design rationale for all parameters
 - [ ] "Download STL" button triggers actual file download
 - [ ] `npm run build` completes with zero TypeScript errors
 - [ ] App deployed to Vercel and accessible at production URL

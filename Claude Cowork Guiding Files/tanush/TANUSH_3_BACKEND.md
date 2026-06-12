@@ -1,4 +1,4 @@
-# TANUSH_3_BACKEND.md — Backend Phase 3: Sim WebSocket, Correction Loop, ADI BOM, Backboard, Export
+# TANUSH_3_BACKEND.md — Backend Phase 3: Sim WebSocket, Correction Loop, ADI BOM, Design Rationale, Export
 
 > **Read ARCHITECTURE.md before starting any work in this file.**
 > **Prerequisites: TANUSH_1_BACKEND.md and AYAN_2_BACKEND.md (backend phases 1 and 2) must be fully complete.**
@@ -11,8 +11,8 @@
 
 1. **`sim.py`** — MuJoCo MJX parallel sim, JPEG frame rendering, WebSocket stream, correction loop
 2. **`adi_agent.py`** — ADI BOM generation from robot spec
-3. **`backboard.py`** — Design decision explanations
-4. **Export endpoint** — returns STL + BOM + Backboard in one response
+3. **`design_rationale.py`** — Design rationale
+4. **Export endpoint** — returns STL + BOM + design rationale in one response
 5. **Final wiring** in `main.py` — replace remaining stubs with real implementations
 
 ---
@@ -301,7 +301,7 @@ async def websocket_sim(websocket: WebSocket):
 ### Correction parsing with Ollama
 
 ```python
-def parse_correction_with_ollama(correction: str) -> dict:
+def parse_correction(correction: str) -> dict:
     prompt = f"""The user said: "{correction}"
 Extract robot parameter changes as JSON. Output ONLY valid JSON, nothing else.
 Valid keys: arm_length_m (float 0.3-1.5), gripper_width_m (float 0.04-0.15), dof (int 3-6), link_radius_m (float 0.015-0.06).
@@ -368,7 +368,7 @@ async def load_sim() -> dict:
 @router.post("/correct")
 async def correct_sim(req: dict) -> dict:
     correction = req.get("correction", "")
-    param_changes = parse_correction_with_ollama(correction)
+    param_changes = parse_correction(correction)
     logger.info(f"Correction '{correction}' parsed to params: {param_changes}")
     
     if param_changes:
@@ -459,7 +459,7 @@ async def get_bom() -> dict:
 
 ---
 
-## Step 3: `backend/backboard.py` — Design Explanations
+## Step 3: `backend/design_rationale.py` — Design Rationale
 
 ### `generate_explanations(params_used: dict, motion_params: dict, robot_spec: dict) -> list[dict]` function
 
@@ -504,8 +504,8 @@ Explanations to generate:
 ```python
 router = APIRouter()
 
-@router.get("/backboard")
-async def get_backboard() -> dict:
+@router.get("/rationale")
+async def get_rationale() -> dict:
     from cad_generator import last_params_used, last_motion_params
     from plan_mode import robot_specs
     
@@ -536,7 +536,7 @@ async def export_stl():
     )
 ```
 
-The BOM and Backboard routes are already in their respective modules. They are reachable at `/api/export/bom` and `/api/export/backboard`.
+The BOM and design rationale routes are already in their respective modules. They are reachable at `/api/export/bom` and `/api/export/rationale`.
 
 ---
 
@@ -547,12 +547,12 @@ Replace all remaining stubs in `main.py` with real router imports:
 ```python
 from sim import router as sim_router, ws_router
 from adi_agent import router as adi_router
-from backboard import router as backboard_router
+from design_rationale import router as rationale_router
 
 app.include_router(sim_router, prefix="/api/sim")
 app.include_router(ws_router)          # handles /ws/sim — no prefix
 app.include_router(adi_router, prefix="/api/export")
-app.include_router(backboard_router, prefix="/api/export")
+app.include_router(rationale_router, prefix="/api/export")
 ```
 
 Remove any remaining inline stub versions of these routes.
@@ -582,8 +582,8 @@ curl -X POST http://localhost:8000/api/sim/correct \
 curl http://localhost:8000/api/export/bom
 # Expected: {"bom":[{...ADIS16470...},{...},...]}
 
-# 5. Get Backboard
-curl http://localhost:8000/api/export/backboard
+# 5. Get design rationale
+curl http://localhost:8000/api/export/rationale
 # Expected: {"explanations":[{"component":"Arm Length","value":"...","reason":"..."},...]}`
 
 # 6. Download STL
@@ -593,7 +593,7 @@ curl http://localhost:8000/api/export/stl -o /tmp/final_robot.stl
 
 Final commit:
 ```bash
-git add -A && git commit -m "feat(backend): sim WebSocket, correction loop, ADI BOM, backboard, export — BACKEND COMPLETE" && git push origin backend
+git add -A && git commit -m "feat(backend): sim WebSocket, correction loop, ADI BOM, design rationale, export — BACKEND COMPLETE" && git push origin backend
 ```
 
 ---
@@ -616,7 +616,7 @@ git add -A && git commit -m "feat(backend): sim WebSocket, correction loop, ADI 
 - [ ] GPU monitor shows utilization spiking when sim runs (if GPU available)
 - [ ] `POST /api/sim/correct` with a text correction regenerates STL and reloads sim
 - [ ] `GET /api/export/bom` returns at least 3 ADI parts with real justifications
-- [ ] `GET /api/export/backboard` returns at least 5 design explanations
+- [ ] `GET /api/export/rationale` returns at least 5 design rationale
 - [ ] `GET /api/export/stl` returns a downloadable STL file
 - [ ] Full correction loop works: speak correction → sim updates → frames change in browser
 - [ ] All changes committed and pushed to `backend` branch

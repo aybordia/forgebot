@@ -8,10 +8,11 @@
 Claude Code must read and align to these files before editing:
 
 1. `Claude Cowork Guiding Files/shared/ARCHITECTURE.md`
-   - Use section 3.1 for `/api/plan/chat`, `/api/omi-webhook`, `/api/plan/spec/{session_id}`, and `/api/plan/reset/{session_id}`.
+   - Use section 3.1 for `/api/plan/chat`, `/api/omi-webhook`, `/api/plan/context/{user_id}`, `/api/plan/spec/{session_id}`, and `/api/plan/reset/{session_id}`.
+   - Use section 11 for Backboard persistent memory behavior.
    - Use section 6 for the `RobotSpec` fields and exact response shape.
 2. `Claude Cowork Guiding Files/shared/BACKEND_SPEC.md`
-   - Use `plan_mode.py` models, `SYSTEM_PROMPT`, `get_ollama_response`, and `try_extract_spec`.
+   - Use `plan_mode.py` models, Backboard setup, `plan_mode_message`, `get_user_context`, and `try_extract_spec`.
    - Follow the backend global rules: type hints, logging, Pydantic response models, temp files in `/tmp`.
 3. `Claude Cowork Guiding Files/shared/FRONTEND_SPEC.md`
    - Use the `app/plan/page.tsx`, `components/PlanMode.tsx`, `lib/api.ts`, `lib/speech.ts`, and `lib/elevenlabs.ts` requirements.
@@ -23,10 +24,11 @@ Claude Code must read and align to these files before editing:
 Tanush owns this complete vertical slice:
 
 - Backend plan conversation endpoints.
+- Backboard persistent memory for Plan Mode and session resume.
 - Frontend plan page and chat UI.
-- Mock fallback so this slice works if Ollama, the backend, or Ayan's files are missing.
+- Mock fallback so this slice works if Backboard, Ollama, the backend, or Ayan's files are missing.
 
-Do not edit capture, CAD, sim, export, ADI, or Backboard implementation except for tiny placeholder routes needed to keep navigation from breaking.
+Do not edit capture, CAD, sim, export, ADI, or design rationale implementation except for tiny placeholder routes needed to keep navigation from breaking.
 
 ## Why This Slice Is Independent
 
@@ -43,6 +45,7 @@ Backend:
 
 - `backend/main.py`
 - `backend/plan_mode.py`
+- `backend/backboard_memory.py`
 - `backend/requirements.txt`
 - `backend/.env.example`
 
@@ -64,12 +67,14 @@ Frontend:
    - Include the plan router at `/api/plan`.
    - Also expose `/api/omi-webhook` at the root API path if the existing architecture expects it outside `/api/plan`.
 2. Implement `backend/plan_mode.py` from `BACKEND_SPEC.md`.
-   - Copy the exact `SYSTEM_PROMPT`.
-   - Use `requests.post("http://localhost:11434/api/chat", ...)`.
-   - Maintain `conversation_history` and `robot_specs` keyed by `session_id`.
+   - Use Backboard `AsyncClient.send_message(message=..., memory="Auto", user_id=...)` for all primary Plan Mode messages.
+   - Keep the robot-spec prompt behavior from the spec.
+   - Use Backboard as persistent memory keyed by `user_id`; keep only short-lived fallback/debug state keyed by `session_id`.
+   - Add `GET /api/plan/context/{user_id}` for welcome-back session resume.
    - Validate extracted specs with required keys: `task`, `payload_kg`, `mounted`, `reach_cm`, `dof`, `gripper_type`.
 3. Add a demo fallback mode.
-   - If Ollama is unreachable, return deterministic assistant questions instead of failing hard.
+   - If Backboard is unavailable, try local Ollama.
+   - If both Backboard and Ollama are unreachable, return deterministic assistant questions instead of failing hard.
    - After five user answers, return a valid demo `RobotSpec`.
    - Log that fallback mode was used.
 4. Add response models for every route.
@@ -78,7 +83,7 @@ Frontend:
 ## Frontend Tasks
 
 1. Implement or extend `frontend/lib/api.ts`.
-   - Export `RobotSpec`, `ChatResponse`, and `planChat`.
+   - Export `RobotSpec`, `ChatResponse`, `getSession`, `getUserContext`, and `planChat`.
    - All fetch calls go through this file.
    - If the backend is unavailable, return mock responses.
    - The mock must eventually return `is_complete: true` and a realistic spec so the UI can be tested alone.
@@ -91,7 +96,7 @@ Frontend:
    - If missing, no-op instead of throwing.
 4. Implement `frontend/components/PlanMode.tsx`.
    - Match `FRONTEND_SPEC.md` behavior.
-   - Start with the first assistant question.
+   - Load or create `session_id` and `user_id`, query `getUserContext(userId)`, then start with a welcome-back message or first assistant question.
    - Support text entry, Enter to send, mic capture, assistant speech, autoscroll, loading dots, and final spec card.
 5. Implement `frontend/app/plan/page.tsx`.
    - Store completed spec in `localStorage` key `robot_spec`.
@@ -105,7 +110,8 @@ Run only the checks available in the current repo:
 ```bash
 cd backend && uvicorn main:app --reload --host 0.0.0.0 --port 8000
 curl http://localhost:8000/health
-curl -X POST http://localhost:8000/api/plan/chat -H "Content-Type: application/json" -d '{"message":"I need a robot that moves boxes","session_id":"tanush-plan-test"}'
+curl http://localhost:8000/api/plan/context/user-tanush-test
+curl -X POST http://localhost:8000/api/plan/chat -H "Content-Type: application/json" -d '{"message":"I need a robot that moves boxes","session_id":"tanush-plan-test","user_id":"user-tanush-test"}'
 ```
 
 ```bash
@@ -135,13 +141,15 @@ This slice is successful when a user can describe a robot need, answer the assis
 
 - `GET /health` returns `{"status":"ok"}` while the backend is running.
 - `POST /api/plan/chat` always returns the architecture contract: `reply`, `is_complete`, and `robot_spec`.
+- `GET /api/plan/context/{user_id}` returns `has_history` and `summary` without crashing if Backboard is unavailable.
 - `POST /api/omi-webhook` accepts `transcript` and returns the same response shape as chat.
 - `GET /api/plan/spec/{session_id}` returns `null` before completion and the completed spec after completion.
 - `DELETE /api/plan/reset/{session_id}` clears that session without affecting other sessions.
 - The frontend `/plan` page works with text input even if browser speech recognition is unavailable.
 - The frontend `/plan` page works without an ElevenLabs key; missing audio must not break chat.
-- The mock/fallback path reaches a completed spec when Ollama is off.
-- The real Ollama path reaches a completed spec when `ollama serve` and `mistral` are available.
+- The mock/fallback path reaches a completed spec when Backboard and Ollama are off.
+- The Backboard path remembers useful user context across sessions when `BACKBOARD_API_KEY` is set.
+- The real Ollama path remains available as fallback when `ollama serve` and `mistral` are available.
 
 ### Backend Test Steps
 
@@ -163,7 +171,7 @@ curl http://localhost:8000/health
 ```bash
 curl -X POST http://localhost:8000/api/plan/chat \
   -H "Content-Type: application/json" \
-  -d '{"message":"I need a robot that moves boxes from a shelf to a table","session_id":"plan-success"}'
+  -d '{"message":"I need a robot that moves boxes from a shelf to a table","session_id":"plan-success","user_id":"user-plan-success"}'
 ```
 
 4. Continue the same `session_id` through payload, mounting, reach, and constraints until `is_complete` becomes `true`.
@@ -201,6 +209,7 @@ npm run dev
 ### Integration Handoff Checks
 
 - The saved `localStorage` key must be exactly `robot_spec`.
+- The frontend must also store and reuse `session_id` and `user_id`.
 - The saved spec must be usable as the `robot_spec` input to `/api/cad/generate`.
 - The completed page should route to `/capture` if it exists, but must not fail if Ayan's capture slice is not implemented yet.
 - No component outside `frontend/lib/api.ts` should call the plan endpoints directly.

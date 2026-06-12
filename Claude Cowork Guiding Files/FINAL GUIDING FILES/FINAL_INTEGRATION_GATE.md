@@ -46,6 +46,8 @@ test -f frontend/.env.local || test -f frontend/.env.example || true
 - Environment mesh path: `/tmp/environment_clean.stl`
 - Robot SCAD temp path: `/tmp/robot.scad`
 - Plan spec storage key: `robot_spec`
+- Session storage keys: `session_id`, `user_id`
+- Backboard env var: `BACKBOARD_API_KEY`
 
 ## Backend Full Contract Check
 
@@ -64,9 +66,10 @@ curl http://localhost:8000/api/scan/status
 curl http://localhost:8000/api/motion/status
 curl http://localhost:8000/api/sim/status
 curl http://localhost:8000/api/export/bom
-curl http://localhost:8000/api/export/backboard
+curl http://localhost:8000/api/export/rationale
 curl -I http://localhost:8000/api/export/stl
 curl http://localhost:8000/mobile
+curl http://localhost:8000/api/plan/context/final-gate-user
 ```
 
 Pass conditions:
@@ -84,7 +87,7 @@ Run:
 ```bash
 curl -X POST http://localhost:8000/api/plan/chat \
   -H "Content-Type: application/json" \
-  -d '{"message":"I need a robot that picks boxes from a low shelf and moves them to a table","session_id":"final-gate-plan"}'
+  -d '{"message":"I need a robot that picks boxes from a low shelf and moves them to a table","session_id":"final-gate-plan","user_id":"final-gate-user"}'
 ```
 
 Then continue the same `session_id` until complete.
@@ -94,7 +97,8 @@ Pass conditions:
 - Response always includes `reply`, `is_complete`, and `robot_spec`.
 - Completed `robot_spec` includes `task`, `payload_kg`, `mounted`, `reach_cm`, `dof`, `gripper_type`, and `notes`.
 - `GET /api/plan/spec/final-gate-plan` returns the same completed spec.
-- Ollama failure falls back to deterministic demo behavior instead of stopping the demo.
+- `GET /api/plan/context/final-gate-user` returns `has_history` and `summary`.
+- Backboard failure and Ollama failure fall back to deterministic demo behavior instead of stopping the demo.
 
 ## Capture Gate
 
@@ -152,7 +156,7 @@ curl -X POST http://localhost:8000/api/sim/load -H "Content-Type: application/js
 curl http://localhost:8000/api/sim/status
 curl -X POST http://localhost:8000/api/sim/correct \
   -H "Content-Type: application/json" \
-  -d '{"correction":"extend the reach and widen the grip"}'
+  -d '{"correction":"extend the reach and widen the grip","user_id":"final-gate-user"}'
 ```
 
 Pass conditions:
@@ -161,6 +165,7 @@ Pass conditions:
 - Repeated `/api/sim/load` calls do not create duplicate loops.
 - Correction response includes `status`, `param_changes`, and `new_stl_url`.
 - Correction parameter names are compatible with CAD generation.
+- Correction is logged to Backboard memory when `BACKBOARD_API_KEY` is set.
 - `/ws/sim` sends status and frame messages to the frontend or a documented placeholder stream.
 
 ## Export Gate
@@ -169,14 +174,14 @@ Run:
 
 ```bash
 curl http://localhost:8000/api/export/bom
-curl http://localhost:8000/api/export/backboard
+curl http://localhost:8000/api/export/rationale
 curl -I http://localhost:8000/api/export/stl
 ```
 
 Pass conditions:
 
 - BOM has useful items with category, part number, description, quantity, justification, and datasheet URL.
-- Backboard explanations include component, value, and reason.
+- Design rationale includes component, value, and reason.
 - Export STL returns the latest `backend/static/robot_current.stl` when available.
 - Export still works with deterministic demo data if upstream slices are incomplete.
 
@@ -195,7 +200,7 @@ Browser pass:
 - `/plan` completes a spec and writes `localStorage.robot_spec`.
 - `/capture` renders QR, mobile URL, and two-item checklist.
 - `/sim` loads without blank crash and shows frame/status/correction UI.
-- `/export` renders Backboard, ADI BOM, Download STL, Copy BOM, and Share Demo Link.
+- `/export` renders Design Rationale, ADI BOM, Download STL, Copy BOM, and Share Demo Link.
 - Stopping the backend does not crash the frontend; mocks or offline states appear.
 
 ## Cloudflare And Phone Gate

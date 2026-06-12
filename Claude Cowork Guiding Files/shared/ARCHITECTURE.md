@@ -26,11 +26,11 @@
 │  │            FastAPI Backend (port 8000) — ASUS GPU Machine        │  │
 │  │                                                                   │  │
 │  │  plan_mode.py   pipeline_a.py   pipeline_b.py   sim.py           │  │
-│  │  cad_generator.py   adi_agent.py   backboard.py                  │  │
+│  │  cad_generator.py   adi_agent.py   backboard_memory.py           │  │
 │  │                                                                   │  │
 │  │  ┌─────────────┐  ┌─────────────┐  ┌──────────────────────────┐ │  │
-│  │  │ Ollama:11434│  │  MuJoCo MJX │  │  MediaPipe (GPU backend) │ │  │
-│  │  │ Mistral 7B  │  │  (JAX/CUDA) │  │  33 landmarks @ 30fps    │ │  │
+│  │  │ Backboard   │  │  MuJoCo MJX │  │  MediaPipe (GPU backend) │ │  │
+│  │  │ memory + LLM│  │  (JAX/CUDA) │  │  33 landmarks @ 30fps    │ │  │
 │  │  └─────────────┘  └─────────────┘  └──────────────────────────┘ │  │
 │  └──────────────────────────────────────────────────────────────────┘  │
 │                                 │                                       │
@@ -53,8 +53,9 @@
 |---|---|---|
 | Next.js frontend | 3000 | `npm run dev` |
 | FastAPI backend | 8000 | `uvicorn main:app --reload --host 0.0.0.0 --port 8000` |
-| Ollama (Mistral 7B) | 11434 | `ollama serve` (starts automatically) |
+| Ollama (Mistral 7B) | 11434 | Optional local fallback if Backboard is unavailable |
 | Cloudflare Tunnel | auto | exposes port 8000 publicly |
+| Backboard API | HTTPS | persistent memory + LLM wrapper for Plan Mode and corrections |
 
 ---
 
@@ -63,13 +64,14 @@
 ### 3.1 Plan Mode
 
 #### `POST /api/plan/chat`
-Sends a user message to Mistral via Ollama. Maintains conversation state server-side in a module-level list.
+Sends a user message through Backboard. Backboard wraps the LLM call and automatically persists useful memory for the supplied `user_id`. Do not maintain long-term memory in a raw module-level conversation list; local state is only a short-lived fallback/cache.
 
 **Request body:**
 ```json
 {
   "message": "I need a robot that picks up boxes",
-  "session_id": "abc123"
+  "session_id": "abc123",
+  "user_id": "user_abc123"
 }
 ```
 
@@ -83,6 +85,19 @@ Sends a user message to Mistral via Ollama. Maintains conversation state server-
 ```
 When `is_complete` is `true`, `robot_spec` contains the full JSON spec (see Plan Mode spec format in section 6). `reply` is always under 2 sentences (enforced by system prompt).
 
+#### `GET /api/plan/context/{user_id}`
+Queries Backboard for remembered user history before Plan Mode starts.
+
+**Response body:**
+```json
+{
+  "has_history": true,
+  "summary": "Last time you designed a 4-DOF warehouse arm with 110cm reach and a preference for wider grippers."
+}
+```
+
+If Backboard is unavailable, returns `{"has_history": false, "summary": ""}` and logs the fallback.
+
 #### `POST /api/omi-webhook`
 Receives a transcript from the physical Omi device (or any webhook caller). Delegates to the same plan_mode logic as `/api/plan/chat`.
 
@@ -90,7 +105,8 @@ Receives a transcript from the physical Omi device (or any webhook caller). Dele
 ```json
 {
   "transcript": "I need a robot that picks boxes off a shelf",
-  "session_id": "omi-default"
+  "session_id": "omi-default",
+  "user_id": "user_abc123"
 }
 ```
 
@@ -226,12 +242,13 @@ Loads the current environment mesh + robot STL into MuJoCo. Starts the MJX paral
 ```
 
 #### `POST /api/sim/correct`
-Receives a voice/text correction string. Sends to Ollama for param extraction. Regenerates STL. Reloads sim.
+Receives a voice/text correction string. Parses parameter changes, regenerates STL, reloads sim, and logs the correction plus before/after params to Backboard memory for the supplied `user_id`.
 
 **Request body:**
 ```json
 {
-  "correction": "extend the reach and widen the grip"
+  "correction": "extend the reach and widen the grip",
+  "user_id": "user_abc123"
 }
 ```
 
@@ -294,8 +311,8 @@ Triggers ADI catalog agent. Returns Bill of Materials with Analog Devices part n
 }
 ```
 
-#### `GET /api/export/backboard`
-Returns the design explanation for the current robot CAD.
+#### `GET /api/export/rationale`
+Returns deterministic design rationale for the current robot CAD. This is not the Backboard integration anymore; Backboard is persistent memory across Plan Mode, specs, corrections, and design iterations.
 
 **Response body:**
 ```json
@@ -318,9 +335,24 @@ Returns the design explanation for the current robot CAD.
 #### `GET /api/export/stl`
 Returns final STL file download. Same as `/api/cad/stl` but sets `Content-Disposition: attachment`.
 
+### 3.6 Session + Backboard Memory
+
+#### `GET /api/session`
+Creates or returns a backend session token that the frontend stores and sends with every request.
+
+**Response body:**
+```json
+{
+  "session_id": "session_1712345678",
+  "user_id": "user_1712345678"
+}
+```
+
+The frontend does not call Backboard directly. It only passes `session_id` and `user_id` to backend endpoints. All Backboard calls happen in backend modules.
+
 ---
 
-### 3.6 Static Files
+### 3.7 Static Files
 
 **`GET /static/{filename}`**
 FastAPI `StaticFiles` mount at `/static` pointing to `./static/` directory. Serves STL files, URDF, etc.
@@ -382,7 +414,7 @@ Server responds with `{"type": "pong"}`.
 Plan Mode (Omi / Web Speech)
         │
         ▼
-Mistral 7B (Ollama) → robot_spec JSON
+Backboard memory + LLM → robot_spec JSON
         │
         ├──────────────────────────────────────────┐
         ▼                                          ▼
@@ -412,7 +444,8 @@ MuJoCo static mesh                         motion_params JSON
                            ▼
                    Web Speech API → text
                    POST /api/sim/correct
-                   Ollama parses → param delta
+                   backend parses → param delta
+                   Backboard logs correction memory
                    OpenSCAD regenerates STL
                    MuJoCo reloads
                    (loop back to WebSocket stream)
@@ -420,7 +453,7 @@ MuJoCo static mesh                         motion_params JSON
                    User satisfied
                            ▼
                    GET /api/export/bom → ADI parts
-                   GET /api/export/backboard → explanations
+                   GET /api/export/rationale → explanations
                    GET /api/export/stl → file download
 ```
 
@@ -444,6 +477,7 @@ ELEVENLABS_API_KEY=<elevenlabs_key>
 STATIC_DIR=./static
 ROBOT_TEMPLATES_DIR=../robot_templates
 OPENSCAD_BIN=/usr/bin/openscad
+BACKBOARD_API_KEY=<backboard_key>
 ```
 
 ---
@@ -507,8 +541,9 @@ If `jax.devices()[0].platform != 'gpu'`, fall back to sequential CPU MuJoCo. Dro
 
 | Pipeline | Failure Mode | Recovery |
 |---|---|---|
-| Plan Mode / Ollama | Ollama not running | Return HTTP 503 with message "LLM offline — run `ollama serve`" |
-| Plan Mode / Ollama | Malformed JSON spec from Mistral | Retry with stricter prompt up to 3 times, then return partial spec |
+| Plan Mode / Backboard | Backboard unavailable | Fall back to local Ollama if running, otherwise deterministic demo prompts |
+| Plan Mode / Backboard | Memory lookup fails | Start fresh but keep app usable; log warning and keep same response shape |
+| Plan Mode / LLM | Malformed JSON spec | Retry with stricter prompt up to 3 times, then return partial spec |
 | Pipeline A / mesh | .obj has bad geometry | trimesh `process=True` auto-repairs; if still bad, return error with vertex count |
 | Pipeline A / MuJoCo | Model reload crash | Catch exception, return `{"status": "error", "message": "..."}`, keep old model loaded |
 | Pipeline B / MediaPipe | No pose detected in video | Return `motion_params` with defaults from robot_spec only |
@@ -523,8 +558,69 @@ If `jax.devices()[0].platform != 'gpu'`, fall back to sequential CPU MuJoCo. Dro
 
 | Sponsor | Where in architecture |
 |---|---|
-| **ASUS GPU** | MuJoCo MJX (`sim.py`), MediaPipe GPU backend (`pipeline_b.py`), Mistral via Ollama (`plan_mode.py`) |
+| **ASUS GPU** | MuJoCo MJX (`sim.py`), MediaPipe GPU backend (`pipeline_b.py`), optional local Mistral fallback (`plan_mode.py`) |
 | **Omi** | `/api/omi-webhook` endpoint + Plan Mode voice conversation (`plan_mode.py`) |
 | **Analog Devices** | ADI catalog query + BOM generation (`adi_agent.py`) + `/api/export/bom` |
 | **Vercel** | Next.js frontend deployed at `https://forgebot.vercel.app` |
-| **Backboard** | Design explanation panel (`backboard.py`) + `/api/export/backboard` + `BackboardPanel.tsx` |
+| **Backboard** | Persistent memory layer for Plan Mode context, robot specs, correction history, design iterations, and user preferences (`backboard_memory.py`) |
+
+---
+
+## 11. Backboard Persistent Memory Integration
+
+Backboard replaces the old "design literacy panel" concept. It is now the memory backbone for the whole app.
+
+### Backend client
+
+```python
+from backboard import AsyncClient
+
+client = AsyncClient(api_key=BACKBOARD_API_KEY)
+```
+
+### Plan Mode
+
+Every Plan Mode message goes through Backboard:
+
+```python
+async def plan_mode_message(user_message: str, user_id: str) -> str:
+    response = await client.send_message(
+        message=user_message,
+        memory="Auto",
+        user_id=user_id,
+    )
+    return response.content
+```
+
+Backboard remembers prior user preferences like warehouse use, heavy payload defaults, preferred reach, gripper preferences, and repeated constraints. On future sessions, Plan Mode should ask fewer questions when memory already provides an answer.
+
+### Session resume
+
+Before Plan Mode starts, query Backboard:
+
+```python
+async def get_user_context(user_id: str) -> str:
+    response = await client.send_message(
+        message="Summarize what this user has built before and their preferences.",
+        memory="Auto",
+        user_id=user_id,
+    )
+    return response.content
+```
+
+If useful history exists, Plan Mode opens with a welcome-back message such as: "Welcome back. Last time you were designing a 4-DOF warehouse arm with 110cm reach. Want to continue from there or start fresh?"
+
+### Correction loop
+
+Every correction gets logged:
+
+```python
+async def log_correction(user_id: str, correction: str, params_before: dict, params_after: dict) -> None:
+    await client.send_message(
+        message=f"User corrected: '{correction}'. Params changed from {params_before} to {params_after}.",
+        memory="Auto",
+        user_id=user_id,
+    )
+```
+
+Future CAD generation should use this memory to bias defaults toward the user's repeated preferences.

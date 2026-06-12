@@ -29,6 +29,7 @@ OLLAMA_HOST=http://localhost:11434
 STATIC_DIR=./static
 ROBOT_TEMPLATES_DIR=../robot_templates
 OPENSCAD_BIN=openscad
+BACKBOARD_API_KEY=your_key_here
 ```
 
 Create `frontend/.env.local`:
@@ -47,6 +48,7 @@ cd backend
 python -m venv venv
 source venv/bin/activate
 pip install fastapi uvicorn[standard] python-multipart pydantic requests numpy trimesh opencv-python mediapipe scipy mujoco mujoco-mjx ollama --break-system-packages
+pip install backboard --break-system-packages
 
 # GPU JAX (separate install, do this after the above)
 pip install "jax[cuda12_pip]" -f https://storage.googleapis.com/jax-releases/jax_cuda_releases.html --break-system-packages
@@ -178,31 +180,33 @@ brew install cloudflare/cloudflare/cloudflared
 **Goal:** Speaking a correction updates the sim live.
 
 **Tasks:**
-1. In `sim.py`, implement `parse_correction_with_ollama()` — sends correction to Ollama, extracts param JSON
+1. In `sim.py`, implement `parse_correction()` — uses Backboard/LLM if available, local Ollama fallback if available, and deterministic keyword fallback
 2. Implement `POST /api/sim/correct`:
-   - Calls `parse_correction_with_ollama()`
+   - Calls `parse_correction()`
    - Loads `cad_generator.last_params_used`
    - Applies param overrides
    - Calls `cad_generator.merge_params_and_generate()` with updated params
+   - Calls `backboard_memory.log_correction(user_id, correction, params_before, params_after)`
    - Stops current sim, calls `init_mjx_sim()` with new STL, restarts `sim_loop()`
 3. Test: POST `{"correction": "make the arm longer"}` to `/api/sim/correct` — verify STL changes and sim reloads
 4. Create `backend/plan_mode.py` — full implementation per BACKEND_SPEC.md
-5. Test plan mode: POST to `/api/plan/chat` with a message — verify Ollama responds
+5. Test plan mode: POST to `/api/plan/chat` with `user_id` — verify Backboard-aware response or fallback response
 
 **Checkpoint:** Voice correction → new STL → sim reloads. Plan Mode conversation works end-to-end. ✓
 
 ---
 
-### Hour 6: ADI BOM + Backboard + Pre-Record Demo Videos
+### Hour 6: ADI BOM + Design Rationale + Backboard Memory + Pre-Record Demo Videos
 
 **Goal:** Export page works. Demo videos are recorded and ready.
 
 **Tasks:**
 1. Create `backend/adi_agent.py` — `generate_bom()` using hardcoded catalog + selection rules
-2. Create `backend/backboard.py` — `generate_explanations()` deterministic generation
-3. Wire both into `main.py`
-4. Test: GET `/api/export/bom` and `/api/export/backboard` — verify real data returns
-5. **Pre-record demo videos:**
+2. Create `backend/design_rationale.py` — `generate_explanations()` deterministic generation
+3. Create `backend/backboard_memory.py` — persistent memory helpers for Plan Mode resume and correction logging
+4. Wire all relevant routers/helpers into `main.py`, `plan_mode.py`, and `sim.py`
+5. Test: GET `/api/export/bom`, GET `/api/export/rationale`, and GET `/api/plan/context/{user_id}` — verify real data or safe fallback returns
+6. **Pre-record demo videos:**
    - Video 1 (30 sec): Screen record of guided environment scan flow on phone (stages 1-5 + heatmap)
    - Video 2 (30 sec): Screen record of motion capture on phone (silhouette alignment + skeleton overlay + rep counter)
    - Save both as MP4, rename to `demo_env_scan.mp4` and `demo_motion_capture.mp4`
@@ -322,24 +326,24 @@ brew install cloudflare/cloudflare/cloudflared
 
 ---
 
-### Hour 5: Correction Console + Backboard + ADI BOM
+### Hour 5: Correction Console + Design Rationale + ADI BOM
 
 **Goal:** Correction console works. Export page shows data.
 
 **Tasks:**
 1. Create `components/CorrectionConsole.tsx`:
    - Mic button (uses `lib/speech.ts`), text input fallback, send button
-   - On send: `api.correctSim(text)`, show `lastChange` confirmation
+   - On send: `api.correctSim(text, userId)`, show `lastChange` confirmation
    - `Ctrl+Space` keyboard shortcut toggles listening
 2. Update `app/sim/page.tsx` — render `<CorrectionConsole onCorrection={...}>` in bottom panel
-3. Create `components/BackboardPanel.tsx` — table of component/value/reason rows, skeleton loader
+3. Create `components/DesignRationalePanel.tsx` — table of component/value/reason rows, skeleton loader
 4. Create `components/ADIPartsPanel.tsx` — cards with category badges, part numbers, datasheets
 5. Create `app/export/page.tsx`:
-   - On mount: `Promise.all([api.getBOM(), api.getBackboard()])`
-   - Two-column layout: BackboardPanel left, ADIPartsPanel right
+   - On mount: `Promise.all([api.getBOM(), api.getDesignRationale()])`
+   - Two-column layout: DesignRationalePanel left, ADIPartsPanel right
    - Download STL, Copy BOM, Share Link buttons
 
-**Checkpoint:** Correction console works. Export page shows BOM and design explanations. ✓
+**Checkpoint:** Correction console works. Export page shows BOM and design rationales. ✓
 
 ---
 
@@ -349,7 +353,7 @@ brew install cloudflare/cloudflare/cloudflared
 
 **Tasks:**
 1. Add page transition: fade in on route change (use Tailwind `animate-fade-in` or CSS transition)
-2. Make all loading states explicit: skeleton loaders in BackboardPanel, ADIPartsPanel, SimViewer
+2. Make all loading states explicit: skeleton loaders in DesignRationalePanel, ADIPartsPanel, SimViewer
 3. Add error states: if API call fails, show red error card instead of blank (never silent failure)
 4. Test on mobile: all pages should be readable on phone screen
 5. Check all `console.error` logs — fix any type errors or fetch failures
@@ -367,7 +371,7 @@ brew install cloudflare/cloudflare/cloudflared
 1. On phone: open Forgebot, scan QR, go through mobile upload flow (real or simulated)
 2. Watch laptop: verify scan status updates, sim loads, robot appears
 3. On laptop: speak correction, verify sim updates
-4. On laptop: navigate to export, verify BOM and backboard
+4. On laptop: navigate to export, verify BOM and design rationale
 5. List all bugs found — fix only the ones that break the demo flow
 6. Practice handing phone to Tanush at the right moment in demo
 
@@ -393,7 +397,8 @@ brew install cloudflare/cloudflare/cloudflared
 ## Critical Path (What Blocks Everything)
 
 ```
-[Ollama running] → Plan Mode works
+[Backboard key set] → Plan Mode has persistent memory
+[Ollama running] → Plan Mode fallback works
       ↓
 [FastAPI running] → all backend features
       ↓

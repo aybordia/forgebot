@@ -27,7 +27,7 @@ Ayan owns the shared foundation:
 - Backend skeleton with every route stubbed to the architecture contract.
 - This foundation exists so every later v2 slice can build independently.
 
-Do not implement deep Plan Mode, capture processing, CAD generation, MJX sim, ADI selection, or Backboard logic here. Stub them cleanly.
+Do not implement deep Plan Mode, capture processing, CAD generation, MJX sim, ADI selection, design rationale, or Backboard memory logic here. Stub them cleanly.
 
 ## Why This Slice Is Independent
 
@@ -69,7 +69,8 @@ Frontend:
    - `/health` returns `{"status": "ok"}`.
 2. Stub every architecture endpoint.
    - Use response shapes from `ARCHITECTURE.md`, not invented shapes.
-   - Include plan, scan, motion, CAD, sim, correction, export, and mobile routes.
+   - Include session, plan, scan, motion, CAD, sim, correction, export, and mobile routes.
+   - `GET /api/session` must return both `session_id` and `user_id`.
 3. Add `/ws/sim`.
    - Accept connection.
    - Send one status JSON.
@@ -107,6 +108,7 @@ Backend:
 ```bash
 cd backend && uvicorn main:app --reload --host 0.0.0.0 --port 8000
 curl http://localhost:8000/health
+curl http://localhost:8000/api/session
 curl http://localhost:8000/api/scan/status
 curl http://localhost:8000/api/sim/status
 curl http://localhost:8000/api/export/bom
@@ -166,7 +168,7 @@ curl http://localhost:8000/api/scan/status
 curl http://localhost:8000/api/motion/status
 curl http://localhost:8000/api/sim/status
 curl http://localhost:8000/api/export/bom
-curl http://localhost:8000/api/export/backboard
+curl http://localhost:8000/api/export/rationale
 curl -I http://localhost:8000/api/export/stl
 curl http://localhost:8000/mobile
 ```

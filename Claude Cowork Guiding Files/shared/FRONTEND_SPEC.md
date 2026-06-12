@@ -13,6 +13,7 @@
 - Every component receives typed props — no `any`
 - The `NEXT_PUBLIC_BACKEND_URL` env var is the base URL for all fetch calls
 - The `NEXT_PUBLIC_WS_URL` env var is the base URL for WebSocket connections
+- Frontend never calls Backboard directly. It stores `session_id` and `user_id`, then passes them to backend endpoints.
 - Mobile breakpoint: `max-width: 768px` (Tailwind `md:` prefix)
 - Color palette: dark background (`bg-gray-950`), accent blue (`blue-500`), text white
 
@@ -95,8 +96,19 @@ On mount, calls `POST /api/sim/load` to start the simulation.
 // GPU indicator badge: green "GPU ●" badge — data comes from WebSocket status messages
 ```
 
+### Session Token Behavior
+
+On first app load, call `GET /api/session` if no local session exists. Store both values in localStorage:
+
+```tsx
+localStorage.setItem("session_id", session.session_id)
+localStorage.setItem("user_id", session.user_id)
+```
+
+All requests that involve user memory must include `user_id`: Plan Mode chat, Omi webhook forwarding, and sim corrections.
+
 ### `app/export/page.tsx` — Export
-Shows CAD export options, ADI BOM, and Backboard panel. Fetches both on mount.
+Shows CAD export options, ADI BOM, and Design Rationale panel. Fetches both on mount.
 
 ```tsx
 // State:
@@ -104,9 +116,9 @@ Shows CAD export options, ADI BOM, and Backboard panel. Fetches both on mount.
 //   explanations: Explanation[] | null
 //   loading: boolean
 
-// On mount: fetch /api/export/bom and /api/export/backboard in parallel (Promise.all)
+// On mount: fetch /api/export/bom and /api/export/rationale in parallel (Promise.all)
 // Layout (two-column):
-//   Left column: <BackboardPanel explanations={explanations} />
+//   Left column: <DesignRationalePanel explanations={explanations} />
 //   Right column: <ADIPartsPanel bom={bom} />
 //   Bottom: three export buttons
 //     "Download STL" → window.open(BACKEND_URL + "/api/export/stl")
@@ -161,9 +173,9 @@ const [specReady, setSpecReady] = useState<boolean>(false)
 ```
 
 **Behavior:**
-1. On mount: send initial empty message to POST /api/plan/chat to trigger first question from Mistral. Display assistant response as first bubble.
+1. On mount: load `user_id`, call `GET /api/plan/context/{user_id}`, then send initial empty message to POST /api/plan/chat to trigger the first Backboard-aware question. Display assistant response as first bubble.
 2. Mic button: calls `startListening()` from `lib/speech.ts`. While listening, button pulses red. When speech ends, populates `inputText`.
-3. Send button / Enter key: calls `api.planChat(inputText, sessionId)`. Appends user + assistant bubbles. If `is_complete=true`, calls `onSpecComplete(spec)`.
+3. Send button / Enter key: calls `api.planChat(inputText, sessionId, userId)`. Appends user + assistant bubbles. If `is_complete=true`, calls `onSpecComplete(spec)`.
 4. Each assistant response: call `speakText(reply)` from `lib/elevenlabs.ts` to read it aloud.
 5. Auto-scroll: `useEffect` on `messages` change → scroll chat div to bottom.
 6. Spec display: when `is_complete=true`, show a green card below chat with spec JSON formatted nicely.
@@ -308,18 +320,18 @@ const [lastChange, setLastChange] = useState<string | null>(null)
 **Behavior:**
 1. Mic button: starts Web Speech API continuous listen. Button glows red while listening.
 2. Speech result populates inputText. Stops listening automatically after 3s of silence.
-3. Send (or Enter): calls `api.correctSim(inputText)`. Sets isProcessing=true. On response: sets lastChange to summary of param_changes. Calls `props.onCorrection(inputText)`.
+3. Send (or Enter): calls `api.correctSim(inputText, userId)`. Sets isProcessing=true. On response: sets lastChange to summary of param_changes. Calls `props.onCorrection(inputText)`.
 4. Keyboard shortcut: `Ctrl+Space` toggles listening.
 
 ---
 
-### `components/BackboardPanel.tsx`
+### `components/DesignRationalePanel.tsx`
 
 **Purpose:** Shows design decision explanations alongside a static CAD preview image.
 
 **Props:**
 ```tsx
-interface BackboardPanelProps {
+interface DesignRationalePanelProps {
   explanations: Explanation[] | null
   // Explanation = { component: string, value: string, reason: string }
 }
@@ -328,7 +340,7 @@ interface BackboardPanelProps {
 **Layout:**
 ```
 ┌──────────────────────────────────────────────────────┐
-│  DESIGN LITERACY — powered by Backboard              │
+│  DESIGN RATIONALE              │
 │                                                      │
 │  Component        Value        Why                   │
 │  ─────────────────────────────────────────────────   │
@@ -475,6 +487,11 @@ export interface ChatResponse {
   robot_spec: RobotSpec | null
 }
 
+export interface SessionResponse {
+  session_id: string
+  user_id: string
+}
+
 export interface BOMItem {
   category: string
   part_number: string
@@ -490,11 +507,23 @@ export interface Explanation {
   reason: string
 }
 
-export async function planChat(message: string, sessionId: string): Promise<ChatResponse> {
+export async function getSession(): Promise<SessionResponse> {
+  const res = await fetch(`${BASE}/api/session`)
+  if (!res.ok) throw new Error(`Session fetch failed: ${res.status}`)
+  return res.json()
+}
+
+export async function getUserContext(userId: string): Promise<{ has_history: boolean; summary: string }> {
+  const res = await fetch(`${BASE}/api/plan/context/${userId}`)
+  if (!res.ok) throw new Error(`User context failed: ${res.status}`)
+  return res.json()
+}
+
+export async function planChat(message: string, sessionId: string, userId: string): Promise<ChatResponse> {
   const res = await fetch(`${BASE}/api/plan/chat`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ message, session_id: sessionId })
+    body: JSON.stringify({ message, session_id: sessionId, user_id: userId })
   })
   if (!res.ok) throw new Error(`Plan chat failed: ${res.status}`)
   return res.json()
@@ -526,11 +555,11 @@ export async function loadSim(): Promise<any> {
   return res.json()
 }
 
-export async function correctSim(correction: string): Promise<any> {
+export async function correctSim(correction: string, userId: string): Promise<any> {
   const res = await fetch(`${BASE}/api/sim/correct`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ correction })
+    body: JSON.stringify({ correction, user_id: userId })
   })
   if (!res.ok) throw new Error(`Correction failed: ${res.status}`)
   return res.json()
@@ -542,9 +571,9 @@ export async function getBOM(): Promise<{ bom: BOMItem[] }> {
   return res.json()
 }
 
-export async function getBackboard(): Promise<{ explanations: Explanation[] }> {
-  const res = await fetch(`${BASE}/api/export/backboard`)
-  if (!res.ok) throw new Error(`Backboard fetch failed: ${res.status}`)
+export async function getDesignRationale(): Promise<{ explanations: Explanation[] }> {
+  const res = await fetch(`${BASE}/api/export/rationale`)
+  if (!res.ok) throw new Error(`Design rationale fetch failed: ${res.status}`)
   return res.json()
 }
 

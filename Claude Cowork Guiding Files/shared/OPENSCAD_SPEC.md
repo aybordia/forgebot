@@ -10,6 +10,8 @@ OpenSCAD is the CAD engine. Python generates a `.scad` file with parameter varia
 
 All templates live in `forgebot/robot_templates/`.
 
+Backboard does not call OpenSCAD directly. Backboard memory can influence the Python-side parameter selection before this template runs. For example, if a user repeatedly corrects arms to be longer or grippers to be wider, `cad_generator.py` may bias `arm_length` or `gripper_width` before writing the `.scad` file. The OpenSCAD variable names and ranges below remain the source of truth.
+
 ---
 
 ## Parameter Reference Table

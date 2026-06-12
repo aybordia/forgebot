@@ -24,7 +24,9 @@ The FastAPI application entry point. Mounts all routes, static files, and WebSoc
 from fastapi import FastAPI
 from fastapi.staticfiles import StaticFiles
 from fastapi.middleware.cors import CORSMiddleware
+from pydantic import BaseModel
 import uvicorn
+import time
 
 app = FastAPI(title="Forgebot API", version="1.0.0")
 
@@ -39,13 +41,26 @@ app.add_middleware(
 # Static files
 app.mount("/static", StaticFiles(directory="static"), name="static")
 
+class SessionResponse(BaseModel):
+    session_id: str
+    user_id: str
+
+@app.get("/api/session", response_model=SessionResponse)
+async def get_session() -> SessionResponse:
+    """
+    Creates a lightweight session/user token pair for frontend localStorage.
+    Frontend sends user_id to Backboard-backed endpoints.
+    """
+    token = str(int(time.time() * 1000))
+    return SessionResponse(session_id=f"session_{token}", user_id=f"user_{token}")
+
 # Routers
 from plan_mode import router as plan_router
 from pipeline_a import router as pipeline_a_router
 from pipeline_b import router as pipeline_b_router
 from sim import router as sim_router, ws_router
 from adi_agent import router as adi_router
-from backboard import router as backboard_router
+from design_rationale import router as rationale_router
 
 app.include_router(plan_router, prefix="/api/plan")
 app.include_router(pipeline_a_router, prefix="/api/scan")
@@ -53,7 +68,7 @@ app.include_router(pipeline_b_router, prefix="/api")
 app.include_router(sim_router, prefix="/api/sim")
 app.include_router(ws_router)      # WebSocket has no prefix — handles /ws/sim
 app.include_router(adi_router, prefix="/api/export")
-app.include_router(backboard_router, prefix="/api/export")
+app.include_router(rationale_router, prefix="/api/export")
 
 @app.get("/health")
 async def health() -> dict:
@@ -67,15 +82,15 @@ if __name__ == "__main__":
 
 ## File: `plan_mode.py`
 
-Handles Omi webhook, voice conversation, and robot spec extraction via Mistral 7B (Ollama).
+Handles Omi webhook, voice conversation, Backboard persistent memory, session resume, and robot spec extraction. Backboard is the primary LLM/memory layer. Ollama is only a local fallback if Backboard is unavailable.
 
 ### Module-level state
 ```python
-# Key: session_id (str), Value: list of {"role": "user"|"assistant", "content": str}
-conversation_history: dict[str, list[dict]] = {}
-
 # Key: session_id, Value: robot spec dict or None
 robot_specs: dict[str, dict | None] = {}
+
+# Optional short-lived fallback/debug cache only. Do not treat this as persistent memory.
+conversation_history: dict[str, list[dict]] = {}
 ```
 
 ### Pydantic Models
@@ -86,10 +101,12 @@ from typing import Optional
 class ChatRequest(BaseModel):
     message: str
     session_id: str = "default"
+    user_id: str = "default-user"
 
 class OmiWebhookRequest(BaseModel):
     transcript: str
     session_id: str = "omi-default"
+    user_id: str = "default-user"
 
 class RobotSpec(BaseModel):
     task: str
@@ -104,121 +121,89 @@ class ChatResponse(BaseModel):
     reply: str
     is_complete: bool
     robot_spec: Optional[RobotSpec] = None
+
+class UserContextResponse(BaseModel):
+    has_history: bool
+    summary: str = ""
 ```
 
-### System prompt (exact string — do not modify)
+### Backboard setup
 ```python
-SYSTEM_PROMPT = """You are a robot design assistant. Ask the user clarifying questions ONE AT A TIME to understand what robot they need. When you have enough information, output a JSON robot spec. Keep ALL responses under 2 sentences — they will be spoken aloud. Be conversational and friendly.
+import logging
+import os
+from backboard import AsyncClient
 
-When you have enough information, output ONLY this JSON (no other text) and nothing else:
-{"task": "...", "payload_kg": X.X, "mounted": true/false, "reach_cm": X, "dof": X, "gripper_type": "parallel" or "adaptive", "notes": "..."}
-
-Ask about these topics in order, one at a time:
-1. What task should the robot perform?
-2. How heavy are the objects it needs to handle? (respond with number in kg)
-3. Does it stay fixed to a surface or move around?
-4. How far does it need to reach? (respond in cm)
-5. Any size or space constraints?
-
-After question 5 you have enough information. Output the JSON spec."""
+logger = logging.getLogger(__name__)
+BACKBOARD_API_KEY = os.getenv("BACKBOARD_API_KEY", "")
+backboard_client = AsyncClient(api_key=BACKBOARD_API_KEY) if BACKBOARD_API_KEY else None
 ```
 
-### Functions
+### System prompt
+Keep the existing robot-spec prompt rules, but use them inside the message sent through Backboard. The assistant must still ask one concise question at a time and eventually output only a JSON `RobotSpec`.
 
+### Required functions
 ```python
-def get_ollama_response(session_id: str, user_message: str) -> str:
+async def plan_mode_message(user_message: str, user_id: str) -> str:
     """
-    Appends user_message to conversation_history[session_id].
-    Sends full history to Ollama /api/chat endpoint (Mistral 7B).
-    Appends assistant reply to history.
-    Returns reply string.
+    Primary path: calls backboard_client.send_message(message=user_message, memory="Auto", user_id=user_id).
+    Backboard automatically extracts durable memory: use case, payload preferences, reach preferences,
+    gripper preferences, constraints, and repeated correction patterns.
 
-    Parameters:
-        session_id: str — identifies the conversation
-        user_message: str — latest user input
-
-    Returns:
-        str — Mistral's reply
-
-    Raises:
-        HTTPException(503) if Ollama is not reachable
+    Fallback path: if Backboard is unavailable, use local Ollama if available. If Ollama is unavailable,
+    use deterministic demo prompts so the hackathon demo never blocks.
     """
-    import requests
 
-    if session_id not in conversation_history:
-        conversation_history[session_id] = []
-        robot_specs[session_id] = None
-
-    conversation_history[session_id].append({"role": "user", "content": user_message})
-
-    payload = {
-        "model": "mistral",
-        "messages": [{"role": "system", "content": SYSTEM_PROMPT}]
-                     + conversation_history[session_id],
-        "stream": False
-    }
-
-    response = requests.post("http://localhost:11434/api/chat", json=payload, timeout=30)
-    # response.json() = {"message": {"role": "assistant", "content": "..."}, ...}
-    reply = response.json()["message"]["content"]
-    conversation_history[session_id].append({"role": "assistant", "content": reply})
-    return reply
-
+async def get_user_context(user_id: str) -> str:
+    """
+    Calls Backboard with:
+    "Summarize what this user has built before and their preferences."
+    Returns a concise summary string.
+    Returns "" if there is no history, no API key, or Backboard is unavailable.
+    """
 
 def try_extract_spec(reply: str) -> dict | None:
     """
     Attempts to parse a JSON robot spec from the reply string.
     Returns parsed dict if valid, None otherwise.
-    Looks for a {...} block anywhere in the reply.
-
-    Parameters:
-        reply: str — Mistral's response text
-
-    Returns:
-        dict | None
+    Required keys: task, payload_kg, mounted, reach_cm, dof, gripper_type.
+    Never raises.
     """
-    import re, json
-    match = re.search(r'\{[^{}]+\}', reply, re.DOTALL)
-    if not match:
-        return None
-    try:
-        spec = json.loads(match.group())
-        # Validate required keys
-        required = {"task", "payload_kg", "mounted", "reach_cm", "dof", "gripper_type"}
-        if not required.issubset(spec.keys()):
-            return None
-        return spec
-    except json.JSONDecodeError:
-        return None
 ```
 
 ### Routes
-
 ```python
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter
 router = APIRouter()
 
 @router.post("/chat", response_model=ChatResponse)
 async def plan_chat(req: ChatRequest) -> ChatResponse:
     """
-    Main conversation endpoint. Call for every user message.
+    Main conversation endpoint. Calls plan_mode_message(req.message, req.user_id).
+    Stores completed robot_specs[req.session_id].
     Returns reply + whether spec is complete + spec if complete.
     """
 
 @router.post("/omi-webhook", response_model=ChatResponse)
 async def omi_webhook(req: OmiWebhookRequest) -> ChatResponse:
     """
-    Exactly the same logic as /chat but accepts Omi device format.
-    Maps req.transcript → ChatRequest.message.
+    Same logic as /chat but accepts Omi transcript format.
+    Maps req.transcript to the Backboard message and preserves req.user_id.
     """
+
+@router.get("/context/{user_id}", response_model=UserContextResponse)
+async def get_context(user_id: str) -> UserContextResponse:
+    """Returns Backboard memory summary for session resume."""
 
 @router.get("/spec/{session_id}")
 async def get_spec(session_id: str) -> dict:
-    """Returns {"spec": robot_spec_dict_or_null}"""
+    """Returns {"spec": robot_spec_dict_or_null}."""
 
 @router.delete("/reset/{session_id}")
 async def reset_session(session_id: str) -> dict:
-    """Clears history and spec. Returns {"status": "reset"}"""
+    """
+    Clears local fallback/debug state and spec for this session.
+    Does not delete Backboard long-term user memory unless a separate explicit delete-memory route is added.
+    """
 ```
 
 ---
@@ -836,13 +821,14 @@ async def load_sim() -> dict:
 @router.post("/correct")
 async def correct_sim(req: dict) -> dict:
     """
-    req = {"correction": "extend the reach and widen the grip"}
+    req = {"correction": "extend the reach and widen the grip", "user_id": "user_abc123"}
     
-    Calls parse_correction_with_ollama(req["correction"]) → param_changes dict
+    Calls parse_correction(req["correction"]) → param_changes dict
     Loads current params from module state (stored after last cad/generate call)
     Applies param_changes (overwrite matching keys)
     Re-runs cad_generator.merge_params_and_generate() with updated params
     Re-runs init_mjx_sim() with new STL
+    Calls backboard_memory.log_correction(req["user_id"], correction, params_before, params_after)
     Returns {"status": "updated", "param_changes": param_changes, "new_stl_url": "/static/robot_current.stl"}
     """
 
@@ -855,12 +841,13 @@ async def sim_status() -> dict:
     """Returns {"running": bool, "fps": float, "step": int, "best_score": float}"""
 ```
 
-### Correction Parsing with Ollama
+### Correction Parsing + Backboard Memory
 
 ```python
-def parse_correction_with_ollama(correction: str) -> dict:
+def parse_correction(correction: str) -> dict:
     """
-    Sends correction string to Ollama with a strict JSON-extraction prompt.
+    Parses correction string with Backboard/LLM if available, local Ollama fallback if available,
+    and deterministic keyword rules as final fallback.
     
     Prompt (exact):
     "The user said: '{correction}'
@@ -872,6 +859,14 @@ def parse_correction_with_ollama(correction: str) -> dict:
     Parses JSON from response.
     Returns dict (may be empty if nothing parseable).
     Never raises — returns {} on any error.
+    """
+
+async def log_correction(user_id: str, correction: str, params_before: dict, params_after: dict) -> None:
+    """
+    Calls Backboard to persist correction memory:
+    "User corrected: '{correction}'. Params changed from {params_before} to {params_after}."
+    Uses memory="Auto" and user_id=user_id.
+    Never raises; logs warning on failure.
     """
 ```
 
@@ -987,9 +982,9 @@ async def get_bom() -> dict:
 
 ---
 
-## File: `backboard.py`
+## File: `design_rationale.py`
 
-Design explanation panel — explains every parameter decision in plain English.
+Design rationale endpoint — explains every parameter decision in plain English.
 
 ### Functions
 
@@ -1045,8 +1040,8 @@ def generate_explanations(params_used: dict, motion_params: dict, robot_spec: di
 ```python
 router = APIRouter()
 
-@router.get("/backboard")
-async def get_backboard() -> dict:
+@router.get("/rationale")
+async def get_rationale() -> dict:
     """
     Reads current params_used, motion_params, robot_spec from module states.
     Calls generate_explanations().
@@ -1075,6 +1070,7 @@ mujoco-mjx==3.1.3
 jax==0.4.26
 jaxlib==0.4.26
 ollama==0.2.0
+backboard
 ```
 
 **GPU JAX install (run separately after requirements.txt):**
@@ -1093,7 +1089,7 @@ Import the variable directly, not the module:
 # In sim.py, to access environment mesh:
 from pipeline_a import environment_mesh, environment_bounds
 
-# In backboard.py, to access CAD params:
+# In design_rationale.py, to access CAD params:
 from cad_generator import last_params_used, last_motion_params
 
 # In adi_agent.py, to access robot spec:
@@ -1103,3 +1099,48 @@ from plan_mode import robot_specs
 Each module that exports shared state must define it at module level with type annotation.
 `cad_generator.py` must track: `last_params_used: dict = {}` and `last_motion_params: dict = {}`.
 Update these at the end of `merge_params_and_generate()`.
+
+## File: `backboard_memory.py`
+
+Persistent user memory helper. No frontend code calls Backboard directly; backend modules call this helper.
+
+```python
+import logging
+import os
+from backboard import AsyncClient
+
+logger = logging.getLogger(__name__)
+BACKBOARD_API_KEY = os.getenv("BACKBOARD_API_KEY", "")
+client = AsyncClient(api_key=BACKBOARD_API_KEY) if BACKBOARD_API_KEY else None
+
+async def send_memory_message(message: str, user_id: str) -> str:
+    if not client:
+        logger.warning("Backboard unavailable: BACKBOARD_API_KEY missing")
+        return ""
+    response = await client.send_message(message=message, memory="Auto", user_id=user_id)
+    return response.content
+
+async def get_user_context(user_id: str) -> str:
+    return await send_memory_message(
+        "Summarize what this user has built before and their preferences.",
+        user_id,
+    )
+
+async def log_correction(user_id: str, correction: str, params_before: dict, params_after: dict) -> None:
+    await send_memory_message(
+        f"User corrected: '{correction}'. Params changed from {params_before} to {params_after}.",
+        user_id,
+    )
+```
+
+Add to `backend/.env`:
+
+```
+BACKBOARD_API_KEY=your_key_here
+```
+
+Add to `backend/requirements.txt`:
+
+```
+backboard
+```

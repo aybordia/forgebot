@@ -32,7 +32,7 @@
 **Speak into mic:**
 > "I need a robot that picks up boxes from a low shelf and moves them to a table."
 
-*[App sends to Ollama, response plays through ElevenLabs voice]*
+*[App sends through Backboard memory, response plays through ElevenLabs voice]*
 *[Show the chat bubble appear with the assistant question]*
 
 **Say:**
@@ -118,12 +118,12 @@
 **Speak into mic:**
 > "Extend the reach and widen the grip."
 
-*[App sends to Ollama, parses param changes, regenerates STL, MuJoCo reloads]*
+*[App parses param changes, logs the correction to Backboard memory, regenerates STL, MuJoCo reloads]*
 *[Show the "✓ Arm extended to 115cm" confirmation message]*
 *[GPU monitor spikes again during STL recompile + sim reload]*
 
 **Say:**
-> "Ollama — running locally on this machine — parses the natural language into parameter changes. OpenSCAD regenerates the CAD. The sim reloads. No API calls, no cloud, no latency."
+> "Backboard remembers this correction. OpenSCAD regenerates the CAD, the sim reloads, and next time the first design starts closer to what this user actually prefers."
 
 ---
 
@@ -134,9 +134,9 @@
 **Say:**
 > "Export screen. Three things happen here."
 
-*[Point at Backboard panel on left]*
+*[Point at Design Rationale panel on left]*
 
-> "First: Backboard. Every design decision is explained. Why this arm length? Because motion capture showed 98cm peak reach. Why parallel gripper? Box geometry. The user understands the robot — they don't just accept it blindly."
+> "First: design rationale. Every design decision is explained. Why this arm length? Because motion capture showed 98cm peak reach. Why parallel gripper? Box geometry. The user understands the robot — they don't just accept it blindly."
 
 *[Point at ADI BOM panel on right]*
 
@@ -144,7 +144,11 @@
 
 *[Point at export buttons]*
 
-> "And one click: STL file, BOM, design explanation. Ready to send to a manufacturer."
+> "And one click: STL file, BOM, design rationale. Ready to send to a manufacturer."
+
+*[Optional 10-second Backboard memory moment]*
+
+> "The real Backboard integration is memory. Every design decision, every correction, every preference survives across sessions. Close and reopen the app, and Plan Mode remembers what this user was building."
 
 ---
 
@@ -165,7 +169,7 @@
 | **ASUS GPU** | Sim load + correction | "MJX runs 512 physics variants on the ASUS GPU" + point at GPU monitor |
 | **Analog Devices** | Export page | "Analog Devices recommends exact electronics — ADIS16470 IMUs, TMC2209 drivers" |
 | **Vercel** | (skip unless asked) | "Frontend deployed on Vercel — one URL, no local setup" |
-| **Backboard** | Export page | "Backboard explains every design decision" |
+| **Backboard** | Plan Mode resume + correction loop | "Backboard remembers every spec, correction, and design preference across sessions" |
 
 ---
 
@@ -177,7 +181,7 @@ watch -n 0.5 "nvidia-smi --query-gpu=utilization.gpu,memory.used,temperature.gpu
 ```
 
 Expected readings during demo:
-- Plan Mode (Ollama): 15-30% GPU (Mistral 7B inference)
+- Plan Mode (Backboard): cloud memory/LLM call; optional local Ollama fallback may use GPU
 - MediaPipe pose processing: 55-70% GPU
 - MuJoCo MJX 512 variants: 80-95% GPU
 - STL recompile (OpenSCAD): 5% GPU (CPU-bound), brief
@@ -189,8 +193,8 @@ Expected readings during demo:
 
 ## Fallback Plans
 
-### If Ollama is slow / times out during Plan Mode conversation
-**Say:** "The LLM is running locally on this GPU — no API calls. Let me paste the spec directly."
+### If Backboard or Ollama is slow / times out during Plan Mode conversation
+**Say:** "Memory is unavailable, so we are using the deterministic demo fallback. Same product flow, just without personalization."
 **Do:** Have a pre-typed robot spec JSON in a text file. Paste it into the spec field manually (add a `?spec=...` URL param handler or a debug text input on the plan page that bypasses conversation).
 
 ### If MuJoCo sim crashes on load

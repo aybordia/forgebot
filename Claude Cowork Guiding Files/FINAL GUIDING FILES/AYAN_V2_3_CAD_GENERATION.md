@@ -13,6 +13,7 @@ Claude Code must read and align to these files before editing:
 2. `Claude Cowork Guiding Files/shared/OPENSCAD_SPEC.md`
    - Copy the OpenSCAD templates and parameter names exactly unless fixing a syntax issue.
    - Use the Python to OpenSCAD generation approach.
+   - Note that Backboard memory can bias Python-side CAD params, but OpenSCAD variable names/ranges remain the source of truth.
 3. `Claude Cowork Guiding Files/shared/BACKEND_SPEC.md`
    - Use `cad_generator.py`, static file, temp file, logging, type hint, and executor rules.
 4. `Claude Cowork Guiding Files/shared/FRONTEND_SPEC.md`
@@ -30,7 +31,7 @@ Ayan owns this complete vertical slice:
 - CAD endpoint contracts.
 - Lightweight frontend/debug affordance to trigger CAD generation if Plan Mode and motion capture are not ready.
 
-Do not edit Plan Mode, scan/motion processing, sim internals, ADI, Backboard, or export UI except for tiny integration hooks.
+Do not edit Plan Mode, scan/motion processing, sim internals, ADI, Backboard memory, design rationale, or export UI except for tiny integration hooks.
 
 ## Why This Slice Is Independent
 
@@ -38,6 +39,7 @@ This slice does not need Tanush's work first because:
 
 - `/api/cad/generate` accepts `robot_spec` and `motion_params` in the request body.
 - If no real spec or motion params exist, the endpoint can use default demo inputs.
+- If Backboard/user preference context is unavailable, CAD still generates from request body or demo defaults.
 - If OpenSCAD is unavailable, the endpoint can write a valid placeholder STL and return the same response shape.
 - Sim and export can consume `static/robot_current.stl` later, but CAD can be tested alone.
 
@@ -69,6 +71,7 @@ Frontend or debug support:
      - `gripper_width_m` from `motion_params.grip_aperture_cm / 100`, clamped to range.
      - `dof`, `mounted`, and `gripper_type` from `robot_spec`.
      - sensible `link_radius_m`, `base_radius_m`, and `joint_ranges_deg`.
+     - Optional: if a caller provides Backboard preference hints such as "prefers longer arms" or "always widens grippers", bias the initial params before clamping.
    - `generate_scad_file(params)` writes `/tmp/robot.scad`.
    - `compile_scad_to_stl(scad_path, stl_path)` calls `openscad`.
    - `simplify_stl(stl_path)` can be a no-op for hackathon safety.
@@ -203,5 +206,6 @@ npm run dev
 - Sim can load `backend/static/robot_current.stl` after generation.
 - Export can return the same `backend/static/robot_current.stl` through `/api/export/stl`.
 - Correction changes from `/api/sim/correct` should use the same parameter naming so CAD can regenerate without a translation layer.
+- Backboard memory may improve initial CAD defaults, but CAD must not require Backboard to be online.
 - After all slices merge, the path `/plan -> /capture -> /api/cad/generate -> /sim -> /export` should not require shape changes.
 - Before marking the whole product done, also run `Claude Cowork Guiding Files/FINAL GUIDING FILES/FINAL_INTEGRATION_GATE.md`.

@@ -28,7 +28,7 @@ Ayan owns this complete vertical slice:
 - Desktop capture page with QR and checklist.
 - Mock and fallback behavior so this works before CAD or sim is ready.
 
-Do not edit Plan Mode, CAD generation, sim internals, ADI, Backboard, or export logic except for reading saved data if needed.
+Do not edit Plan Mode, CAD generation, sim internals, ADI, Backboard memory, design rationale, or export logic except for reading saved data if needed.
 
 ## Why This Slice Is Independent
 

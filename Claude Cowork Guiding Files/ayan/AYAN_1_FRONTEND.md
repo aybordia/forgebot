@@ -189,6 +189,11 @@ export interface SimStatus {
   gpu_util_pct: number
 }
 
+export interface SessionResponse {
+  session_id: string
+  user_id: string
+}
+
 // ── Helper ──────────────────────────────────────────────────────────────────
 
 async function apiFetch<T>(path: string, options?: RequestInit, mockData?: T): Promise<T> {
@@ -208,25 +213,41 @@ async function apiFetch<T>(path: string, options?: RequestInit, mockData?: T): P
 
 // ── Plan Mode ───────────────────────────────────────────────────────────────
 
-export async function planChat(message: string, sessionId: string): Promise<ChatResponse> {
+export async function getSession(): Promise<SessionResponse> {
+  return apiFetch<SessionResponse>(
+    "/api/session",
+    undefined,
+    { session_id: `session-${Date.now()}`, user_id: `user-${Date.now()}` }
+  )
+}
+
+export async function getUserContext(userId: string): Promise<{ has_history: boolean; summary: string }> {
+  return apiFetch<{ has_history: boolean; summary: string }>(
+    `/api/plan/context/${userId}`,
+    undefined,
+    { has_history: false, summary: "" }
+  )
+}
+
+export async function planChat(message: string, sessionId: string, userId: string): Promise<ChatResponse> {
   return apiFetch<ChatResponse>(
     "/api/plan/chat",
     {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ message, session_id: sessionId }),
+      body: JSON.stringify({ message, session_id: sessionId, user_id: userId }),
     },
     { reply: "What task should the robot perform?", is_complete: false, robot_spec: null }
   )
 }
 
-export async function omiWebhook(transcript: string, sessionId: string): Promise<ChatResponse> {
+export async function omiWebhook(transcript: string, sessionId: string, userId: string): Promise<ChatResponse> {
   return apiFetch<ChatResponse>(
     "/api/omi-webhook",
     {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ transcript, session_id: sessionId }),
+      body: JSON.stringify({ transcript, session_id: sessionId, user_id: userId }),
     },
     { reply: "How heavy are the objects it needs to handle?", is_complete: false, robot_spec: null }
   )
@@ -294,13 +315,13 @@ export async function loadSim(): Promise<{ status: string }> {
   return apiFetch("/api/sim/load", { method: "POST" }, { status: "running" })
 }
 
-export async function correctSim(correction: string): Promise<{ status: string; param_changes: object }> {
+export async function correctSim(correction: string, userId: string): Promise<{ status: string; param_changes: object }> {
   return apiFetch(
     "/api/sim/correct",
     {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ correction }),
+      body: JSON.stringify({ correction, user_id: userId }),
     },
     { status: "updated", param_changes: { arm_length_m: 1.1 } }
   )
@@ -326,9 +347,9 @@ export async function getBOM(): Promise<{ bom: BOMItem[] }> {
   )
 }
 
-export async function getBackboard(): Promise<{ explanations: Explanation[] }> {
+export async function getDesignRationale(): Promise<{ explanations: Explanation[] }> {
   return apiFetch<{ explanations: Explanation[] }>(
-    "/api/export/backboard",
+    "/api/export/rationale",
     undefined,
     {
       explanations: [
@@ -592,7 +613,7 @@ export default function Home() {
           Built for Milpitas Hacks 3 · 2026 · Roboscale
         </p>
         <p className="text-xs text-gray-700 mt-1">
-          Powered by ASUS GPU · Omi · Analog Devices · Vercel · Backboard
+          Powered by ASUS GPU · Omi · Analog Devices · Vercel · Backboard memory
         </p>
       </div>
     </main>

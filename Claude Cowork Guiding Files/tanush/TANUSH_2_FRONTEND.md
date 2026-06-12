@@ -58,7 +58,7 @@ useEffect(() => {
   async function triggerFirstQuestion() {
     setIsLoading(true)
     try {
-      const res = await planChat("", sessionId)
+      const res = await planChat("", sessionId, userId)
       appendMessage("assistant", res.reply)
       await speakText(res.reply)
     } catch (e) {
@@ -85,7 +85,7 @@ async function sendMessage(text: string) {
   setIsLoading(true)
   
   try {
-    const res = await planChat(text, sessionId)  // from lib/api.ts
+    const res = await planChat(text, sessionId, userId)  // from lib/api.ts
     appendMessage("assistant", res.reply)
     await speakText(res.reply)  // from lib/elevenlabs.ts
     
