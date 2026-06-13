@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { motion, AnimatePresence } from "framer-motion"
 import { correctSim } from "@/lib/api"
 import { createSpeechRecognizer, isSpeechSupported } from "@/lib/speech"
@@ -14,6 +14,11 @@ export default function CorrectionConsole({ userId }: CorrectionConsoleProps) {
   const [isLoading, setIsLoading] = useState(false)
   const [isListening, setIsListening] = useState(false)
   const [lastChanges, setLastChanges] = useState<Record<string, number> | null>(null)
+  const [voiceReady, setVoiceReady] = useState(false)
+
+  useEffect(() => {
+    setVoiceReady(isSpeechSupported())
+  }, [])
 
   async function handleSubmit() {
     const text = input.trim()
@@ -56,7 +61,7 @@ export default function CorrectionConsole({ userId }: CorrectionConsoleProps) {
       </div>
 
       <div className="flex items-center gap-2">
-        {isSpeechSupported() && (
+        {voiceReady && (
           <button
             onClick={toggleVoice}
             className={`p-2.5 rounded-xl transition-all duration-200 ${

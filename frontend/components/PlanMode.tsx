@@ -4,7 +4,6 @@ import { useEffect, useRef, useState } from "react"
 import { motion, AnimatePresence } from "framer-motion"
 import { planChat, getUserContext, type RobotSpec, type ChatResponse } from "@/lib/api"
 import { createSpeechRecognizer, isSpeechSupported } from "@/lib/speech"
-import { speakText, stopSpeaking } from "@/lib/elevenlabs"
 
 interface Message {
   role: "user" | "assistant"
@@ -24,29 +23,34 @@ export default function PlanMode({ onSpecComplete }: PlanModeProps) {
   const [userId, setUserId] = useState("")
   const [completedSpec, setCompletedSpec] = useState<RobotSpec | null>(null)
   const [welcomeBack, setWelcomeBack] = useState("")
+  const [voiceReady, setVoiceReady] = useState(false)
 
   const chatEndRef = useRef<HTMLDivElement>(null)
   const stopListeningRef = useRef<(() => void) | null>(null)
 
+  // Speech APIs only exist client-side — gate to avoid hydration mismatch
   useEffect(() => {
-    async function init() {
-      let uid = localStorage.getItem("user_id") || `user_${Date.now()}`
-      localStorage.setItem("user_id", uid)
-      setUserId(uid)
+    setVoiceReady(isSpeechSupported())
+  }, [])
 
-      const ctx = await getUserContext(uid)
+  useEffect(() => {
+    let uid = localStorage.getItem("user_id") || `user_${Date.now()}`
+    localStorage.setItem("user_id", uid)
+    setUserId(uid)
+
+    // Show the opening question immediately — don't block on memory lookup
+    setIsLoading(true)
+    planChat("", sessionId, uid).then((res) => {
+      setMessages([{ role: "assistant", content: res.reply }])
+      setIsLoading(false)
+    })
+
+    // Load Backboard "welcome back" context in parallel (non-blocking)
+    getUserContext(uid).then((ctx) => {
       if (ctx.has_history && ctx.summary) {
         setWelcomeBack(ctx.summary)
       }
-
-      setIsLoading(true)
-      const res = await planChat("", sessionId, uid)
-      setMessages([{ role: "assistant", content: res.reply }])
-      setIsLoading(false)
-      speakText(res.reply)
-    }
-    init()
-    return () => stopSpeaking()
+    })
   }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
@@ -65,7 +69,6 @@ export default function PlanMode({ onSpecComplete }: PlanModeProps) {
 
     setMessages(prev => [...prev, { role: "assistant", content: res.reply }])
     setIsLoading(false)
-    speakText(res.reply)
 
     if (res.is_complete && res.robot_spec) {
       setCompletedSpec(res.robot_spec)
@@ -117,7 +120,7 @@ export default function PlanMode({ onSpecComplete }: PlanModeProps) {
             <p className="text-xs text-gray-500">Describe your robot arm</p>
           </div>
         </div>
-        {isSpeechSupported() && (
+        {voiceReady && (
           <span className="text-[10px] text-gray-600 font-mono uppercase tracking-wider">Voice enabled</span>
         )}
       </div>

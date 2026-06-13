@@ -2,11 +2,13 @@
 
 import { useEffect, useState } from "react"
 import { motion } from "framer-motion"
+import dynamic from "next/dynamic"
 import { loadSim, stopSim } from "@/lib/api"
-import SimViewer from "@/components/SimViewer"
 import CorrectionConsole from "@/components/CorrectionConsole"
 import NavBar from "@/components/NavBar"
 import { type SimStatus } from "@/lib/websocket"
+
+const SimScene3D = dynamic(() => import("@/components/SimScene3D"), { ssr: false })
 
 export default function SimPage() {
   const [simLoaded, setSimLoaded] = useState(false)
@@ -79,7 +81,7 @@ export default function SimPage() {
             transition={{ delay: 0.1 }}
             className="flex-1 min-h-0 mb-4"
           >
-            <SimViewer onStatusUpdate={setStatus} />
+            <SimScene3D onStatusUpdate={setStatus} />
           </motion.div>
 
           {/* Correction console */}
