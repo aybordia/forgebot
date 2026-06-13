@@ -244,18 +244,19 @@ export default function SimScene3D({ onStatusUpdate, armScale = 1, twin }: SimSc
     const envTex = pmrem.fromScene(new RoomEnvironment(), 0.04).texture
     scene.environment = envTex
 
-    const camera = new THREE.PerspectiveCamera(40, w / h, 0.1, 200)
-    camera.position.set(6.5, 4.2, 7.5)
+    const camera = new THREE.PerspectiveCamera(38, w / h, 0.1, 200)
+    // Position camera looking down the assembly row like the reference photo
+    camera.position.set(-7.2, 2.8, 5.2)
 
     const controls = new OrbitControls(camera, renderer.domElement)
     controls.enableDamping = true
     controls.dampingFactor = 0.05
-    controls.target.set(0, 1.4, 0)
+    controls.target.set(1.5, 1.8, 0)
     controls.minDistance = 4
-    controls.maxDistance = 20
+    controls.maxDistance = 24
     controls.maxPolarAngle = Math.PI / 2.05
     controls.autoRotate = true
-    controls.autoRotateSpeed = 0.5
+    controls.autoRotateSpeed = 0.35
 
     // ── Lighting ──
     scene.add(new THREE.AmbientLight(0xffffff, 0.35))
@@ -329,97 +330,155 @@ export default function SimScene3D({ onStatusUpdate, armScale = 1, twin }: SimSc
       rail.rotation.y = -Math.atan2(dz, dx)
       scene.add(rail)
     }
-    const fb = 5.2 // fence bound
-    const corners: [number, number][] = [[-fb, -fb], [fb, -fb], [fb, fb], [-fb, fb]]
-    for (let i = 0; i < corners.length; i++) {
-      const [x1, z1] = corners[i]
-      const [x2, z2] = corners[(i + 1) % corners.length]
-      // skip front edge for camera view (i===3 is front-left to left)
-      if (i === 2) continue
-      fencePost(x1, z1)
-      for (let s = 1; s < 4; s++) fencePost(x1 + (x2 - x1) * s / 4, z1 + (z2 - z1) * s / 4)
-      fenceRail(x1, z1, x2, z2, 1.05)
-      fenceRail(x1, z1, x2, z2, 0.55)
+    // Straight rail in front of the arm row (parallel to z-axis at x = -0.5),
+    // matching the photo's yellow safety railing along the line of machines.
+    const railX = -0.4
+    const railZStart = -6.5
+    const railZEnd = 6.5
+    const postCount = 13
+    for (let i = 0; i < postCount; i++) {
+      const z = railZStart + (railZEnd - railZStart) * (i / (postCount - 1))
+      fencePost(railX, z)
+    }
+    // Three horizontal rails at different heights
+    for (const y of [1.6, 1.05, 0.5]) {
+      fenceRail(railX, railZStart, railX, railZEnd, y)
+    }
+    // Wire mesh panels between posts (vertical thin posts)
+    const meshMat = new THREE.MeshStandardMaterial({ color: hexToInt(spec.fence_color), metalness: 0.4, roughness: 0.6 })
+    for (let z = railZStart; z < railZEnd; z += 0.18) {
+      const wire = new THREE.Mesh(new THREE.CylinderGeometry(0.012, 0.012, 1.6, 6), meshMat)
+      wire.position.set(railX, 0.8, z)
+      scene.add(wire)
     }
 
-    // ── Central positioner (turntable + workpiece) ──
-    const positioner = new THREE.Group()
-    scene.add(positioner)
-    const ptBase = new THREE.Mesh(new THREE.CylinderGeometry(0.7, 0.85, 0.4, 32), new THREE.MeshStandardMaterial({ color: 0x14161b, metalness: 0.8, roughness: 0.4 }))
-    ptBase.position.y = 0.2; ptBase.castShadow = true; ptBase.receiveShadow = true
-    positioner.add(ptBase)
-    const turntable = new THREE.Group()
-    turntable.position.y = 0.42
-    positioner.add(turntable)
-    const ttDisc = new THREE.Mesh(new THREE.CylinderGeometry(0.6, 0.6, 0.08, 32), new THREE.MeshStandardMaterial({ color: 0x33373f, metalness: 0.9, roughness: 0.3 }))
-    ttDisc.castShadow = true; ttDisc.receiveShadow = true
-    turntable.add(ttDisc)
-    // workpiece (car-door-like assembly)
-    const wpMat = new THREE.MeshStandardMaterial({ color: 0x9aa3ad, metalness: 0.85, roughness: 0.35 })
-    const wp1 = new THREE.Mesh(new THREE.BoxGeometry(0.9, 0.7, 0.12), wpMat)
-    wp1.position.set(0, 0.45, 0); wp1.castShadow = true
-    turntable.add(wp1)
-    const wp2 = new THREE.Mesh(new THREE.BoxGeometry(0.12, 0.5, 0.6), wpMat)
-    wp2.position.set(0.35, 0.4, 0.3); wp2.castShadow = true
-    turntable.add(wp2)
-
-    // ── Robot arms (colors + count from photo) ──
+    // ── Robot arms in a tight assembly-line row (matches the photo) ──
     const arms: Arm[] = []
     const machineColors = spec.machine_colors.length > 0
       ? spec.machine_colors.map(hexToInt)
       : [0xff6a00, 0x1565c0]
     const pickColor = (i: number) => machineColors[i % machineColors.length]
 
-    const armCount = Math.max(2, Math.min(7, spec.arm_count))
+    const armCount = Math.max(3, Math.min(7, Math.max(spec.arm_count, 6)))
+    const rowZStart = -5.6
+    const rowZEnd = 5.6
+    const rowX = 1.6  // arms positioned behind the safety rail
 
-    // Two hero arms flanking the positioner
-    const heroA = makeArm(pickColor(0), 0)
-    heroA.root.position.set(-2.6, 0, 1.6)
-    heroA.root.rotation.y = Math.PI * 0.18
-    scene.add(heroA.root); arms.push(heroA)
+    // Per-arm anchored workstation (small steel pedestal in front of each arm)
+    const pedestalMat = new THREE.MeshStandardMaterial({ color: 0x1a1d23, metalness: 0.85, roughness: 0.4 })
+    const wpMat = new THREE.MeshStandardMaterial({ color: 0x6f7480, metalness: 0.7, roughness: 0.5 })
+    const workpieces: THREE.Mesh[] = []
 
-    const heroB = makeArm(pickColor(1), 1.6)
-    heroB.root.position.set(2.6, 0, 1.6)
-    heroB.root.rotation.y = -Math.PI * 0.18 + Math.PI
-    scene.add(heroB.root); arms.push(heroB)
-
-    // Receding production line (extra arms = arm_count - 2)
-    const extra = Math.max(0, armCount - 2)
-    for (let i = 0; i < extra; i++) {
-      const a = makeArm(pickColor(i + 2), i * 0.9 + 0.4)
-      a.root.position.set(-3.6, 0, -1.2 - i * 1.9)
-      a.root.rotation.y = -Math.PI * 0.5
-      a.root.scale.setScalar(0.82)
+    for (let i = 0; i < armCount; i++) {
+      const t = armCount === 1 ? 0.5 : i / (armCount - 1)
+      const z = rowZStart + (rowZEnd - rowZStart) * t
+      // Slightly stagger arm phase so they all move differently
+      const phase = i * 0.9
+      // All arms in the row share the dominant orange (most-frequent vibrant color)
+      const a = makeArm(pickColor(0), phase)
+      a.root.position.set(rowX, 0, z)
+      a.root.rotation.y = -Math.PI / 2 // face the rail / camera side
       scene.add(a.root); arms.push(a)
+
+      // Steel pedestal under each arm — anchors it visually
+      const pedestal = new THREE.Mesh(new THREE.BoxGeometry(1.0, 0.4, 1.0), pedestalMat)
+      pedestal.position.set(rowX, 0.2, z)
+      pedestal.castShadow = true; pedestal.receiveShadow = true
+      scene.add(pedestal)
+
+      // Front edge plate
+      const plate = new THREE.Mesh(new THREE.BoxGeometry(1.0, 0.05, 0.1), pedestalMat)
+      plate.position.set(rowX - 0.55, 0.42, z)
+      scene.add(plate)
+
+      // Small workpiece on a station in front of each arm
+      const wp = new THREE.Mesh(new THREE.BoxGeometry(0.5, 0.35, 0.5), wpMat)
+      wp.position.set(rowX - 0.85, 0.6, z)
+      wp.castShadow = true; wp.receiveShadow = true
+      scene.add(wp)
+      workpieces.push(wp)
     }
 
-    // ── Conveyor with moving workpieces (only if source photo has one) ──
+    // Compatibility holder for the animation loop (no central turntable anymore)
+    const turntable = new THREE.Group()
     const crates: THREE.Mesh[] = []
-    if (spec.has_conveyor) {
-    const conveyor = new THREE.Group()
-    conveyor.position.set(2.8, 0, -3)
-    conveyor.rotation.y = Math.PI / 2
-    scene.add(conveyor)
-    const beltMat = new THREE.MeshStandardMaterial({ color: 0x1a1d23, metalness: 0.6, roughness: 0.6 })
-    const belt = new THREE.Mesh(new THREE.BoxGeometry(6, 0.12, 0.9), beltMat)
-    belt.position.y = 0.55; belt.castShadow = true; belt.receiveShadow = true
-    conveyor.add(belt)
-    const legMat = new THREE.MeshStandardMaterial({ color: 0x2a2e36, metalness: 0.9, roughness: 0.3 })
-    for (const lx of [-2.6, 0, 2.6]) {
-      for (const lz of [-0.35, 0.35]) {
-        const leg = new THREE.Mesh(new THREE.BoxGeometry(0.12, 0.55, 0.12), legMat)
-        leg.position.set(lx, 0.27, lz); leg.castShadow = true
-        conveyor.add(leg)
+
+    // ── Overhead industrial ceiling: trusses + hanging lights ──
+    const trussMat = new THREE.MeshStandardMaterial({ color: 0x3a3f4a, metalness: 0.85, roughness: 0.45 })
+    const beamMat = new THREE.MeshStandardMaterial({ color: 0x2b2f37, metalness: 0.9, roughness: 0.4 })
+
+    const ceilingY = 6.2
+    // Two long main girders running along z, above the arm row
+    for (const gx of [0.0, 3.2]) {
+      const girder = new THREE.Mesh(new THREE.BoxGeometry(0.35, 0.4, 14), trussMat)
+      girder.position.set(gx, ceilingY, 0)
+      girder.castShadow = true
+      scene.add(girder)
+      // Lower flange (I-beam look)
+      const flange = new THREE.Mesh(new THREE.BoxGeometry(0.7, 0.08, 14), trussMat)
+      flange.position.set(gx, ceilingY - 0.2, 0)
+      scene.add(flange)
+    }
+    // Cross beams every 2 units
+    for (let z = -6; z <= 6; z += 2) {
+      const cross = new THREE.Mesh(new THREE.BoxGeometry(3.6, 0.25, 0.25), beamMat)
+      cross.position.set(1.6, ceilingY, z)
+      cross.castShadow = true
+      scene.add(cross)
+    }
+
+    // Vertical support columns from floor to ceiling at the row ends
+    const colMat = new THREE.MeshStandardMaterial({ color: 0x2a2e36, metalness: 0.9, roughness: 0.4 })
+    for (const cz of [-6.4, 6.4]) {
+      for (const cx of [-0.3, 3.4]) {
+        const col = new THREE.Mesh(new THREE.BoxGeometry(0.25, ceilingY, 0.25), colMat)
+        col.position.set(cx, ceilingY / 2, cz)
+        col.castShadow = true
+        scene.add(col)
       }
     }
-    const crateMat = new THREE.MeshStandardMaterial({ color: 0xc98a3a, metalness: 0.2, roughness: 0.7 })
-    for (let i = 0; i < 4; i++) {
-      const crate = new THREE.Mesh(new THREE.BoxGeometry(0.5, 0.4, 0.5), crateMat)
-      crate.position.set(-3 + i * 1.6, 0.81, 0)
-      crate.castShadow = true; crate.receiveShadow = true
-      conveyor.add(crate); crates.push(crate)
+
+    // Hanging industrial lights (with warm glow matching photo warmth)
+    const housingMat = new THREE.MeshStandardMaterial({ color: 0x1a1d22, metalness: 0.9, roughness: 0.4 })
+    const lampColorHex = spec.warmth > -0.05 ? 0xffe9c0 : 0xe0eaff
+    const lampMat = new THREE.MeshStandardMaterial({
+      color: lampColorHex, emissive: lampColorHex, emissiveIntensity: 1.4,
+      metalness: 0.0, roughness: 0.3,
+    })
+    for (let z = -5; z <= 5; z += 2.5) {
+      // Cable
+      const cable = new THREE.Mesh(new THREE.CylinderGeometry(0.015, 0.015, 0.9, 6), beamMat)
+      cable.position.set(1.6, ceilingY - 0.65, z)
+      scene.add(cable)
+      // Housing (industrial dome)
+      const housing = new THREE.Mesh(new THREE.CylinderGeometry(0.32, 0.42, 0.25, 18), housingMat)
+      housing.position.set(1.6, ceilingY - 1.15, z)
+      housing.castShadow = true
+      scene.add(housing)
+      // Glowing bulb
+      const bulb = new THREE.Mesh(new THREE.SphereGeometry(0.22, 16, 16), lampMat)
+      bulb.position.set(1.6, ceilingY - 1.22, z)
+      scene.add(bulb)
+      // Subtle point light from each lamp
+      const pLight = new THREE.PointLight(lampColorHex, 8, 9, 2)
+      pLight.position.set(1.6, ceilingY - 1.4, z)
+      scene.add(pLight)
     }
-    }  // end if (spec.has_conveyor)
+
+    // ── Back-wall industrial ducting / structure (depth + atmosphere) ──
+    const ductMat = new THREE.MeshStandardMaterial({ color: 0x4a5060, metalness: 0.8, roughness: 0.5 })
+    for (let z = -6; z <= 6; z += 3) {
+      const duct = new THREE.Mesh(new THREE.CylinderGeometry(0.4, 0.4, 5, 18), ductMat)
+      duct.position.set(5.5, 2.5, z)
+      duct.castShadow = true
+      scene.add(duct)
+    }
+    // Back wall panel suggesting depth
+    const wallMat = new THREE.MeshStandardMaterial({ color: 0x252830, metalness: 0.4, roughness: 0.7 })
+    const wall = new THREE.Mesh(new THREE.PlaneGeometry(16, 8), wallMat)
+    wall.position.set(7, 4, 0)
+    wall.rotation.y = -Math.PI / 2
+    scene.add(wall)
 
     // ── Animation loop ──
     let raf = 0
@@ -437,6 +496,10 @@ export default function SimScene3D({ onStatusUpdate, armScale = 1, twin }: SimSc
 
       for (const arm of arms) updateArm(arm, t, reachRef.current)
       turntable.rotation.y = t * 0.25
+      for (let i = 0; i < workpieces.length; i++) {
+        workpieces[i].rotation.y = Math.sin(t * 0.6 + i * 0.5) * 0.15
+        workpieces[i].position.y = 0.6 + Math.sin(t * 1.2 + i) * 0.02
+      }
       for (const crate of crates) {
         crate.position.x += dt * 0.6
         if (crate.position.x > 3.2) crate.position.x = -3.2
@@ -464,15 +527,21 @@ export default function SimScene3D({ onStatusUpdate, armScale = 1, twin }: SimSc
     function onResize() {
       if (!container) return
       const nw = container.clientWidth, nh = container.clientHeight
+      if (nw === 0 || nh === 0) return
       camera.aspect = nw / nh
       camera.updateProjectionMatrix()
       renderer.setSize(nw, nh)
     }
     window.addEventListener("resize", onResize)
 
+    // Also observe the container itself — Framer Motion mounts it at 0×0 and grows it
+    const ro = new ResizeObserver(onResize)
+    ro.observe(container)
+
     return () => {
       cancelAnimationFrame(raf)
       window.removeEventListener("resize", onResize)
+      ro.disconnect()
       controls.dispose()
       pmrem.dispose()
       renderer.dispose()
