@@ -1,0 +1,8 @@
+{
+  "max_reach_cm": 85,
+  "avg_joint_angles_deg": [45, 95, 65, 20],
+  "grip_aperture_cm": 7.5,
+  "motion_speed": "medium",
+  "endpoint_height_cm": 72,
+  "reps_detected": 3
+}

@@ -7,67 +7,85 @@ export interface SimStatus {
   gpu_util_pct: number
 }
 
-export interface WebSocketConfig {
-  onFrame: (data: ArrayBuffer) => void
+interface SimSocketCallbacks {
+  onFrame: (blob: Blob) => void
   onStatus: (status: SimStatus) => void
   onConnect: () => void
   onDisconnect: () => void
-  onError?: (msg: string) => void
 }
 
-export function createSimWebSocket(config: WebSocketConfig): { close: () => void } {
+/**
+ * Connects to /ws/sim. Backend streams status as text JSON and frames as
+ * binary (Blob). If the socket is unavailable, falls back to a mock status
+ * timer so the UI stays useful. Returns a cleanup function.
+ */
+export function connectSimSocket(callbacks: SimSocketCallbacks): () => void {
   let ws: WebSocket | null = null
-  let reconnectTimer: ReturnType<typeof setTimeout> | null = null
-  let shouldReconnect = true
-  let pingInterval: ReturnType<typeof setInterval> | null = null
+  let closed = false
+  let mockInterval: ReturnType<typeof setInterval> | null = null
 
   function connect() {
-    ws = new WebSocket(`${WS_BASE}/ws/sim`)
-    ws.binaryType = "arraybuffer"  // CRITICAL — must be set before onmessage fires
+    if (closed) return
 
-    ws.onopen = () => {
-      config.onConnect()
-      // Keep-alive ping every 10 seconds
-      pingInterval = setInterval(() => {
-        if (ws?.readyState === WebSocket.OPEN) {
-          ws.send(JSON.stringify({ type: "ping" }))
+    try {
+      ws = new WebSocket(`${WS_BASE}/ws/sim`)
+      ws.binaryType = "blob"
+
+      ws.onopen = () => {
+        callbacks.onConnect()
+        if (mockInterval) {
+          clearInterval(mockInterval)
+          mockInterval = null
         }
-      }, 10000)
-    }
-
-    ws.onmessage = (event) => {
-      if (event.data instanceof ArrayBuffer) {
-        config.onFrame(event.data)
-      } else {
-        try {
-          const msg = JSON.parse(event.data as string)
-          if (msg.type === "status") config.onStatus(msg as SimStatus)
-          if (msg.type === "error" && config.onError) config.onError(msg.message)
-        } catch (_) {}
       }
-    }
 
-    ws.onclose = () => {
-      if (pingInterval) clearInterval(pingInterval)
-      config.onDisconnect()
-      if (shouldReconnect) {
-        reconnectTimer = setTimeout(connect, 2000)
+      ws.onmessage = (event) => {
+        if (event.data instanceof Blob) {
+          callbacks.onFrame(event.data)
+        } else {
+          try {
+            const status: SimStatus = JSON.parse(event.data)
+            callbacks.onStatus(status)
+          } catch {}
+        }
       }
-    }
 
-    ws.onerror = () => {
-      ws?.close()  // triggers onclose → reconnect
+      ws.onclose = () => {
+        callbacks.onDisconnect()
+        if (!closed) {
+          startMockFallback()
+          setTimeout(connect, 3000)
+        }
+      }
+
+      ws.onerror = () => {
+        ws?.close()
+      }
+    } catch {
+      startMockFallback()
+      if (!closed) setTimeout(connect, 3000)
     }
+  }
+
+  function startMockFallback() {
+    if (mockInterval || closed) return
+    let mockStep = 0
+    mockInterval = setInterval(() => {
+      mockStep++
+      callbacks.onStatus({
+        fps: 0,
+        step: mockStep,
+        score: Math.min(0.95, 0.3 + 0.005 * mockStep),
+        gpu_util_pct: 0,
+      })
+    }, 500)
   }
 
   connect()
 
-  return {
-    close: () => {
-      shouldReconnect = false
-      if (reconnectTimer) clearTimeout(reconnectTimer)
-      if (pingInterval) clearInterval(pingInterval)
-      ws?.close()
-    }
+  return () => {
+    closed = true
+    if (mockInterval) clearInterval(mockInterval)
+    ws?.close()
   }
 }

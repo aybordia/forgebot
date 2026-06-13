@@ -1,2 +1,8 @@
 .DS_Store
 .agent-runtime/
+.env
+.env.local
+__pycache__/
+*.pyc
+venv/
+node_modules/

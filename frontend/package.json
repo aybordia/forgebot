@@ -9,6 +9,9 @@
     "lint": "next lint"
   },
   "dependencies": {
+    "@react-three/drei": "^10.7.7",
+    "@react-three/fiber": "^9.6.1",
+    "framer-motion": "^12.40.0",
     "next": "14.2.35",
     "qrcode.react": "^4.2.0",
     "react": "^18",

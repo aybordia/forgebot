@@ -1,13 +1,18 @@
-import type { Metadata } from "next"
+import type { Metadata, Viewport } from "next"
 import { Inter } from "next/font/google"
 import "./globals.css"
 
 const inter = Inter({ subsets: ["latin"] })
 
 export const metadata: Metadata = {
-  title: "Forgebot",
-  description: "It's Lovable for robots.",
-  viewport: "width=device-width, initial-scale=1, maximum-scale=1",
+  title: "Forgebot — Physical AI Robot Designer",
+  description: "Design custom robot arms through conversation, simulation, and export.",
+}
+
+export const viewport: Viewport = {
+  width: "device-width",
+  initialScale: 1,
+  maximumScale: 1,
 }
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
