@@ -69,27 +69,73 @@ async function apiFetch<T>(path: string, options?: RequestInit, mockData?: T): P
   }
 }
 
+// ── Session ─────────────────────────────────────────────────────────────────
+
+export interface SessionResponse {
+  session_id: string
+  user_id: string
+}
+
+export async function getSession(): Promise<SessionResponse> {
+  return apiFetch<SessionResponse>(
+    "/api/session",
+    undefined,
+    { session_id: `session_${Date.now()}`, user_id: `user_${Date.now()}` }
+  )
+}
+
+export async function getUserContext(userId: string): Promise<{ has_history: boolean; summary: string }> {
+  return apiFetch(
+    `/api/plan/context/${userId}`,
+    undefined,
+    { has_history: false, summary: "" }
+  )
+}
+
 // ── Plan Mode ───────────────────────────────────────────────────────────────
 
-export async function planChat(message: string, sessionId: string): Promise<ChatResponse> {
+const MOCK_QUESTIONS = [
+  "What task should the robot perform?",
+  "How heavy are the objects it needs to handle?",
+  "Will the robot be fixed to a surface or freestanding?",
+  "How far does it need to reach in centimeters?",
+  "How many degrees of freedom — 3, 4, 5, or 6?",
+]
+let mockStep = 0
+
+export async function planChat(message: string, sessionId: string, userId: string): Promise<ChatResponse> {
   return apiFetch<ChatResponse>(
     "/api/plan/chat",
     {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ message, session_id: sessionId }),
+      body: JSON.stringify({ message, session_id: sessionId, user_id: userId }),
     },
-    { reply: "What task should the robot perform?", is_complete: false, robot_spec: null }
+    (() => {
+      const step = mockStep++
+      if (step >= MOCK_QUESTIONS.length) {
+        return {
+          reply: "Your robot spec is ready!",
+          is_complete: true,
+          robot_spec: {
+            task: "pick and place", payload_kg: 2.5, mounted: true,
+            reach_cm: 100, dof: 4, gripper_type: "parallel",
+            notes: "Warehouse box sorting from low shelf to table height"
+          }
+        }
+      }
+      return { reply: MOCK_QUESTIONS[step], is_complete: false, robot_spec: null }
+    })()
   )
 }
 
-export async function omiWebhook(transcript: string, sessionId: string): Promise<ChatResponse> {
+export async function omiWebhook(transcript: string, sessionId: string, userId: string): Promise<ChatResponse> {
   return apiFetch<ChatResponse>(
     "/api/omi-webhook",
     {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ transcript, session_id: sessionId }),
+      body: JSON.stringify({ transcript, session_id: sessionId, user_id: userId }),
     },
     { reply: "How heavy are the objects it needs to handle?", is_complete: false, robot_spec: null }
   )
@@ -157,13 +203,13 @@ export async function loadSim(): Promise<{ status: string }> {
   return apiFetch("/api/sim/load", { method: "POST" }, { status: "running" })
 }
 
-export async function correctSim(correction: string): Promise<{ status: string; param_changes: object }> {
+export async function correctSim(correction: string, userId: string): Promise<{ status: string; param_changes: object }> {
   return apiFetch(
     "/api/sim/correct",
     {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ correction }),
+      body: JSON.stringify({ correction, user_id: userId }),
     },
     { status: "updated", param_changes: { arm_length_m: 1.1 } }
   )
@@ -189,9 +235,9 @@ export async function getBOM(): Promise<{ bom: BOMItem[] }> {
   )
 }
 
-export async function getBackboard(): Promise<{ explanations: Explanation[] }> {
+export async function getRationale(): Promise<{ explanations: Explanation[] }> {
   return apiFetch<{ explanations: Explanation[] }>(
-    "/api/export/backboard",
+    "/api/export/rationale",
     undefined,
     {
       explanations: [
