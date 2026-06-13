@@ -42,40 +42,57 @@ export default function SimViewer({ onStatusUpdate }: SimViewerProps) {
   }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
   return (
-    <div className="relative bg-gray-900 rounded-xl overflow-hidden border border-gray-700">
+    <div className="relative h-full glass rounded-2xl overflow-hidden border border-white/5">
       <canvas
         ref={canvasRef}
-        className="w-full aspect-video bg-gray-950"
+        className="w-full h-full object-contain bg-gray-950"
       />
 
       {/* Connection badge */}
-      <div className="absolute top-3 left-3 flex items-center gap-2">
-        <span className={`w-2 h-2 rounded-full ${connected ? "bg-green-400" : "bg-yellow-400 animate-pulse"}`} />
-        <span className="text-xs text-gray-400">
-          {connected ? "Live" : "Connecting..."}
+      <div className="absolute top-4 left-4 flex items-center gap-2">
+        <div className={`w-1.5 h-1.5 rounded-full ${connected ? "bg-green-400 shadow-lg shadow-green-400/50" : "bg-yellow-400 animate-pulse"}`} />
+        <span className="text-[10px] font-mono text-gray-500">
+          {connected ? "LIVE" : "CONNECTING"}
         </span>
       </div>
 
-      {/* FPS overlay */}
-      <div className="absolute top-3 right-3 text-xs text-gray-400 font-mono">
+      {/* FPS */}
+      <div className="absolute top-4 right-4 text-[10px] font-mono text-gray-600">
         {status.fps > 0 ? `${status.fps.toFixed(0)} FPS` : "—"}
       </div>
 
-      {/* Status bar */}
-      <div className="absolute bottom-0 left-0 right-0 bg-black/60 px-4 py-2 flex items-center justify-between text-xs text-gray-300">
-        <span>Step {status.step.toLocaleString()}</span>
-        <span>Score: {status.score.toFixed(3)}</span>
-        <span className={status.gpu_util_pct > 0 ? "text-green-400" : "text-gray-500"}>
+      {/* Bottom status bar */}
+      <div className="absolute bottom-0 left-0 right-0 glass border-t border-white/5 px-4 py-2.5 flex items-center justify-between">
+        <span className="text-[10px] font-mono text-gray-500">
+          STEP {status.step.toLocaleString()}
+        </span>
+        <div className="flex items-center gap-1">
+          <div className="w-24 h-1 bg-white/5 rounded-full overflow-hidden">
+            <div
+              className="h-full bg-gradient-to-r from-blue-500 to-green-500 rounded-full transition-all duration-300"
+              style={{ width: `${Math.min(100, status.score * 100)}%` }}
+            />
+          </div>
+          <span className="text-[10px] font-mono text-gray-400 ml-1">
+            {status.score.toFixed(3)}
+          </span>
+        </div>
+        <span className={`text-[10px] font-mono ${status.gpu_util_pct > 0 ? "text-green-400" : "text-gray-600"}`}>
           GPU {status.gpu_util_pct > 0 ? `${status.gpu_util_pct.toFixed(0)}%` : "N/A"}
         </span>
       </div>
 
-      {/* Placeholder when no frames */}
+      {/* Placeholder overlay */}
       {!connected && (
-        <div className="absolute inset-0 flex items-center justify-center bg-gray-950/80">
+        <div className="absolute inset-0 flex items-center justify-center bg-gray-950/90">
           <div className="text-center">
-            <p className="text-gray-400 text-sm mb-1">Simulation Preview</p>
-            <p className="text-gray-600 text-xs">Waiting for backend connection...</p>
+            <div className="w-12 h-12 rounded-2xl bg-purple-500/10 border border-purple-500/20 flex items-center justify-center mx-auto mb-3">
+              <svg className="w-6 h-6 text-purple-400 animate-pulse" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z" />
+              </svg>
+            </div>
+            <p className="text-sm text-gray-400 mb-1">Simulation Preview</p>
+            <p className="text-xs text-gray-600 font-mono">Connecting to backend...</p>
           </div>
         </div>
       )}

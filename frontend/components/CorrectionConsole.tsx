@@ -1,6 +1,7 @@
 "use client"
 
 import { useState } from "react"
+import { motion, AnimatePresence } from "framer-motion"
 import { correctSim } from "@/lib/api"
 import { createSpeechRecognizer, isSpeechSupported } from "@/lib/speech"
 
@@ -28,7 +29,6 @@ export default function CorrectionConsole({ userId }: CorrectionConsoleProps) {
 
   function toggleVoice() {
     if (isListening) return
-
     if (!isSpeechSupported()) return
 
     setIsListening(true)
@@ -49,15 +49,20 @@ export default function CorrectionConsole({ userId }: CorrectionConsoleProps) {
   }
 
   return (
-    <div className="space-y-3">
-      <h3 className="text-sm font-semibold text-gray-300">Correction Console</h3>
+    <div className="glass rounded-2xl border border-white/5 p-4 space-y-3">
+      <div className="flex items-center gap-2">
+        <div className="w-1.5 h-1.5 rounded-full bg-purple-400" />
+        <h3 className="text-xs font-semibold text-gray-400 uppercase tracking-wider">Correction Console</h3>
+      </div>
 
       <div className="flex items-center gap-2">
         {isSpeechSupported() && (
           <button
             onClick={toggleVoice}
-            className={`p-2.5 rounded-xl transition-colors ${
-              isListening ? "bg-red-600 animate-pulse" : "bg-gray-800 hover:bg-gray-700"
+            className={`p-2.5 rounded-xl transition-all duration-200 ${
+              isListening
+                ? "bg-red-500/80 animate-pulse shadow-lg shadow-red-500/20"
+                : "bg-white/5 hover:bg-white/10 border border-white/5"
             }`}
           >
             <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
@@ -71,31 +76,46 @@ export default function CorrectionConsole({ userId }: CorrectionConsoleProps) {
           value={input}
           onChange={(e) => setInput(e.target.value)}
           onKeyDown={(e) => e.key === "Enter" && handleSubmit()}
-          placeholder="e.g. extend the reach and widen the grip"
+          placeholder='e.g. "extend the reach and widen the grip"'
           disabled={isLoading}
-          className="flex-1 bg-gray-800 rounded-xl px-4 py-2.5 text-sm outline-none focus:ring-1 focus:ring-blue-500 disabled:opacity-40"
+          className="flex-1 bg-white/5 border border-white/5 rounded-xl px-4 py-2.5 text-sm outline-none
+            focus:ring-1 focus:ring-purple-500/50 focus:border-purple-500/30 disabled:opacity-40
+            placeholder:text-gray-600 transition-all duration-200"
         />
 
         <button
           onClick={handleSubmit}
           disabled={!input.trim() || isLoading}
-          className="px-4 py-2.5 bg-blue-600 hover:bg-blue-500 rounded-xl text-sm font-medium transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+          className="px-4 py-2.5 bg-purple-600 hover:bg-purple-500 rounded-xl text-xs font-medium
+            transition-all duration-200 disabled:opacity-30 disabled:cursor-not-allowed"
         >
           {isLoading ? "..." : "Correct"}
         </button>
       </div>
 
-      {lastChanges && (
-        <div className="bg-gray-800/60 border border-gray-700 rounded-xl p-3 space-y-1">
-          <p className="text-xs text-green-400 font-medium mb-2">Parameters Updated</p>
-          {Object.entries(lastChanges).map(([key, value]) => (
-            <div key={key} className="flex justify-between text-xs">
-              <span className="text-gray-400">{paramLabels[key] || key}</span>
-              <span className="font-mono text-white">{typeof value === "number" ? value.toFixed(4) : value}</span>
+      <AnimatePresence>
+        {lastChanges && (
+          <motion.div
+            initial={{ opacity: 0, height: 0 }}
+            animate={{ opacity: 1, height: "auto" }}
+            exit={{ opacity: 0, height: 0 }}
+            className="overflow-hidden"
+          >
+            <div className="bg-green-500/5 border border-green-500/10 rounded-xl p-3 space-y-1.5">
+              <div className="flex items-center gap-2">
+                <div className="w-1.5 h-1.5 rounded-full bg-green-400" />
+                <p className="text-[10px] font-mono text-green-400 uppercase tracking-wider">Parameters Updated</p>
+              </div>
+              {Object.entries(lastChanges).map(([key, value]) => (
+                <div key={key} className="flex justify-between text-xs">
+                  <span className="text-gray-500">{paramLabels[key] || key}</span>
+                  <span className="font-mono text-white">{typeof value === "number" ? value.toFixed(4) : value}</span>
+                </div>
+              ))}
             </div>
-          ))}
-        </div>
-      )}
+          </motion.div>
+        )}
+      </AnimatePresence>
     </div>
   )
 }

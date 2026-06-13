@@ -115,6 +115,12 @@ def try_extract_spec(reply: str) -> dict | None:
 
 
 async def plan_mode_message(user_message: str, session_id: str, user_id: str) -> str:
+    # First message (empty) — return our own greeting, don't send to Backboard
+    if not user_message.strip():
+        greeting = "Hey! I'm Forgebot. Let's design your robot arm. What task should it perform?"
+        conversation_history.setdefault(session_id, []).append({"role": "assistant", "content": greeting})
+        return greeting
+
     # Try Backboard first
     thread_id = thread_ids.get(session_id)
     msg = f"[System context: {SYSTEM_PROMPT}]\n\nUser: {user_message}" if not thread_id else user_message

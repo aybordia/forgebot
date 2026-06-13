@@ -1,6 +1,7 @@
 "use client"
 
 import { useEffect, useRef, useState } from "react"
+import { motion, AnimatePresence } from "framer-motion"
 import { planChat, getUserContext, type RobotSpec, type ChatResponse } from "@/lib/api"
 import { createSpeechRecognizer, isSpeechSupported } from "@/lib/speech"
 import { speakText, stopSpeaking } from "@/lib/elevenlabs"
@@ -27,20 +28,17 @@ export default function PlanMode({ onSpecComplete }: PlanModeProps) {
   const chatEndRef = useRef<HTMLDivElement>(null)
   const stopListeningRef = useRef<(() => void) | null>(null)
 
-  // Initialize: load user_id, check context, get first question
   useEffect(() => {
     async function init() {
       let uid = localStorage.getItem("user_id") || `user_${Date.now()}`
       localStorage.setItem("user_id", uid)
       setUserId(uid)
 
-      // Check Backboard context
       const ctx = await getUserContext(uid)
       if (ctx.has_history && ctx.summary) {
         setWelcomeBack(ctx.summary)
       }
 
-      // Trigger first assistant question
       setIsLoading(true)
       const res = await planChat("", sessionId, uid)
       setMessages([{ role: "assistant", content: res.reply }])
@@ -51,7 +49,6 @@ export default function PlanMode({ onSpecComplete }: PlanModeProps) {
     return () => stopSpeaking()
   }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Auto-scroll on new messages
   useEffect(() => {
     chatEndRef.current?.scrollIntoView({ behavior: "smooth" })
   }, [messages])
@@ -108,82 +105,118 @@ export default function PlanMode({ onSpecComplete }: PlanModeProps) {
   return (
     <div className="flex flex-col h-full max-w-2xl mx-auto">
       {/* Header */}
-      <div className="flex items-center justify-between px-4 py-3 border-b border-gray-800">
-        <div className="flex items-center gap-2">
-          <span className="text-lg font-bold text-blue-400">PLAN MODE</span>
+      <div className="flex items-center justify-between px-6 py-4 border-b border-white/5">
+        <div className="flex items-center gap-3">
+          <div className="w-8 h-8 rounded-xl bg-blue-500/15 border border-blue-500/20 flex items-center justify-center">
+            <svg className="w-4 h-4 text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
+            </svg>
+          </div>
+          <div>
+            <span className="text-sm font-semibold text-white">Plan Mode</span>
+            <p className="text-xs text-gray-500">Describe your robot arm</p>
+          </div>
         </div>
         {isSpeechSupported() && (
-          <span className="text-xs text-gray-500">Voice enabled</span>
+          <span className="text-[10px] text-gray-600 font-mono uppercase tracking-wider">Voice enabled</span>
         )}
       </div>
 
       {/* Welcome back banner */}
-      {welcomeBack && (
-        <div className="mx-4 mt-3 p-3 bg-blue-900/30 border border-blue-800 rounded-xl text-sm text-blue-300">
-          {welcomeBack}
-        </div>
-      )}
+      <AnimatePresence>
+        {welcomeBack && (
+          <motion.div
+            initial={{ opacity: 0, height: 0 }}
+            animate={{ opacity: 1, height: "auto" }}
+            exit={{ opacity: 0, height: 0 }}
+            className="mx-6 mt-3"
+          >
+            <div className="p-3 glass rounded-xl border border-blue-500/20 text-sm text-blue-300">
+              {welcomeBack}
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
 
       {/* Chat messages */}
-      <div className="flex-1 overflow-y-auto px-4 py-4 space-y-3">
-        {messages.map((msg, i) => (
-          <div
-            key={i}
-            className={`flex ${msg.role === "user" ? "justify-end" : "justify-start"}`}
-          >
-            <div
-              className={`px-4 py-2.5 max-w-[75%] text-sm leading-relaxed ${
-                msg.role === "user"
-                  ? "bg-blue-600 rounded-tl-2xl rounded-tr-sm rounded-bl-2xl rounded-br-2xl ml-auto"
-                  : "bg-gray-800 rounded-tl-sm rounded-tr-2xl rounded-bl-2xl rounded-br-2xl mr-auto"
-              }`}
+      <div className="flex-1 overflow-y-auto px-6 py-4 space-y-3">
+        <AnimatePresence initial={false}>
+          {messages.map((msg, i) => (
+            <motion.div
+              key={i}
+              initial={{ opacity: 0, y: 10, scale: 0.97 }}
+              animate={{ opacity: 1, y: 0, scale: 1 }}
+              transition={{ duration: 0.3 }}
+              className={`flex ${msg.role === "user" ? "justify-end" : "justify-start"}`}
             >
-              {msg.content}
-            </div>
-          </div>
-        ))}
+              <div
+                className={`px-4 py-2.5 max-w-[75%] text-sm leading-relaxed ${
+                  msg.role === "user"
+                    ? "bg-blue-600/80 rounded-2xl rounded-tr-md ml-auto"
+                    : "glass border border-white/5 rounded-2xl rounded-tl-md mr-auto"
+                }`}
+              >
+                {msg.content}
+              </div>
+            </motion.div>
+          ))}
+        </AnimatePresence>
 
         {isLoading && (
-          <div className="flex justify-start">
-            <div className="bg-gray-800 rounded-tl-sm rounded-tr-2xl rounded-bl-2xl rounded-br-2xl px-4 py-3 mr-auto">
-              <div className="flex gap-1">
-                <span className="w-2 h-2 bg-gray-500 rounded-full animate-bounce" style={{ animationDelay: "0ms" }} />
-                <span className="w-2 h-2 bg-gray-500 rounded-full animate-bounce" style={{ animationDelay: "150ms" }} />
-                <span className="w-2 h-2 bg-gray-500 rounded-full animate-bounce" style={{ animationDelay: "300ms" }} />
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            className="flex justify-start"
+          >
+            <div className="glass border border-white/5 rounded-2xl rounded-tl-md px-4 py-3 mr-auto">
+              <div className="flex gap-1.5">
+                <span className="w-2 h-2 bg-blue-400/60 rounded-full animate-bounce" style={{ animationDelay: "0ms" }} />
+                <span className="w-2 h-2 bg-blue-400/60 rounded-full animate-bounce" style={{ animationDelay: "150ms" }} />
+                <span className="w-2 h-2 bg-blue-400/60 rounded-full animate-bounce" style={{ animationDelay: "300ms" }} />
               </div>
             </div>
-          </div>
+          </motion.div>
         )}
 
         <div ref={chatEndRef} />
       </div>
 
       {/* Completed spec card */}
-      {completedSpec && (
-        <div className="mx-4 mb-3 p-4 bg-green-900/30 border border-green-700 rounded-xl">
-          <p className="text-green-400 font-semibold text-sm mb-2">Spec Locked</p>
-          <div className="grid grid-cols-2 gap-x-4 gap-y-1 text-xs text-gray-300">
-            <span>Task: <span className="text-white">{completedSpec.task}</span></span>
-            <span>Payload: <span className="text-white">{completedSpec.payload_kg}kg</span></span>
-            <span>Reach: <span className="text-white">{completedSpec.reach_cm}cm</span></span>
-            <span>DOF: <span className="text-white">{completedSpec.dof}</span></span>
-            <span>Gripper: <span className="text-white">{completedSpec.gripper_type}</span></span>
-            <span>Mounted: <span className="text-white">{completedSpec.mounted ? "Yes" : "No"}</span></span>
-          </div>
-        </div>
-      )}
+      <AnimatePresence>
+        {completedSpec && (
+          <motion.div
+            initial={{ opacity: 0, y: 20, scale: 0.95 }}
+            animate={{ opacity: 1, y: 0, scale: 1 }}
+            className="mx-6 mb-3"
+          >
+            <div className="p-4 glass rounded-2xl border border-green-500/20 glow-green">
+              <div className="flex items-center gap-2 mb-3">
+                <div className="w-2 h-2 rounded-full bg-green-500" />
+                <p className="text-green-400 font-semibold text-sm">Spec Locked</p>
+              </div>
+              <div className="grid grid-cols-2 gap-x-4 gap-y-2 text-xs">
+                <span className="text-gray-500">Task <span className="text-white ml-1">{completedSpec.task}</span></span>
+                <span className="text-gray-500">Payload <span className="text-white ml-1">{completedSpec.payload_kg}kg</span></span>
+                <span className="text-gray-500">Reach <span className="text-white ml-1">{completedSpec.reach_cm}cm</span></span>
+                <span className="text-gray-500">DOF <span className="text-white ml-1">{completedSpec.dof}</span></span>
+                <span className="text-gray-500">Gripper <span className="text-white ml-1">{completedSpec.gripper_type}</span></span>
+                <span className="text-gray-500">Mounted <span className="text-white ml-1">{completedSpec.mounted ? "Yes" : "No"}</span></span>
+              </div>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
 
       {/* Input bar */}
-      <div className="px-4 py-3 border-t border-gray-800 flex items-center gap-2">
+      <div className="px-6 py-4 border-t border-white/5 flex items-center gap-2">
         <button
           onClick={toggleListening}
           disabled={!!completedSpec}
-          className={`p-2.5 rounded-xl transition-colors ${
+          className={`p-2.5 rounded-xl transition-all duration-200 ${
             isListening
-              ? "bg-red-600 animate-pulse"
-              : "bg-gray-800 hover:bg-gray-700"
-          } ${completedSpec ? "opacity-40 cursor-not-allowed" : ""}`}
-          title={isListening ? "Stop listening" : "Start voice input"}
+              ? "bg-red-500/80 animate-pulse shadow-lg shadow-red-500/20"
+              : "bg-white/5 hover:bg-white/10 border border-white/5"
+          } ${completedSpec ? "opacity-30 cursor-not-allowed" : ""}`}
         >
           <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 20 20">
             <path d="M7 4a3 3 0 016 0v4a3 3 0 11-6 0V4zm4 10.93A7.001 7.001 0 0017 8a1 1 0 10-2 0A5 5 0 015 8a1 1 0 00-2 0 7.001 7.001 0 006 6.93V17H6a1 1 0 100 2h8a1 1 0 100-2h-3v-2.07z" />
@@ -195,15 +228,18 @@ export default function PlanMode({ onSpecComplete }: PlanModeProps) {
           value={inputText}
           onChange={(e) => setInputText(e.target.value)}
           onKeyDown={(e) => e.key === "Enter" && handleSend()}
-          placeholder={completedSpec ? "Spec complete — continue to capture" : "Describe your robot..."}
+          placeholder={completedSpec ? "Spec complete — heading to simulation..." : "Describe your robot..."}
           disabled={!!completedSpec}
-          className="flex-1 bg-gray-800 rounded-xl px-4 py-2.5 text-sm outline-none focus:ring-1 focus:ring-blue-500 disabled:opacity-40"
+          className="flex-1 bg-white/5 border border-white/5 rounded-xl px-4 py-2.5 text-sm outline-none
+            focus:ring-1 focus:ring-blue-500/50 focus:border-blue-500/30 disabled:opacity-30
+            placeholder:text-gray-600 transition-all duration-200"
         />
 
         <button
           onClick={handleSend}
           disabled={!inputText.trim() || isLoading || !!completedSpec}
-          className="px-4 py-2.5 bg-blue-600 hover:bg-blue-500 rounded-xl text-sm font-medium transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+          className="px-5 py-2.5 bg-blue-600 hover:bg-blue-500 rounded-xl text-sm font-medium
+            transition-all duration-200 disabled:opacity-30 disabled:cursor-not-allowed glow-blue"
         >
           Send
         </button>

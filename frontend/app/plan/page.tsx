@@ -2,6 +2,7 @@
 
 import { useRouter } from "next/navigation"
 import PlanMode from "@/components/PlanMode"
+import NavBar from "@/components/NavBar"
 import { type RobotSpec } from "@/lib/api"
 
 export default function PlanPage() {
@@ -10,13 +11,16 @@ export default function PlanPage() {
   function handleSpecComplete(spec: RobotSpec) {
     localStorage.setItem("robot_spec", JSON.stringify(spec))
     setTimeout(() => {
-      router.push("/capture")
+      router.push("/sim")
     }, 2000)
   }
 
   return (
-    <main className="h-screen flex flex-col">
-      <PlanMode onSpecComplete={handleSpecComplete} />
-    </main>
+    <>
+      <NavBar />
+      <main className="h-screen flex flex-col pt-14 bg-grid">
+        <PlanMode onSpecComplete={handleSpecComplete} />
+      </main>
+    </>
   )
 }
