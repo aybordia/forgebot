@@ -55,6 +55,13 @@ from plan_mode import omi_webhook
 app.post("/api/omi-webhook")(omi_webhook)
 
 
+# ── Sim router ──────────────────────────────────────────────────────────────
+
+from sim import sim_router, ws_router
+app.include_router(sim_router, prefix="/api/sim")
+app.include_router(ws_router)
+
+
 # ── Export routers ──────────────────────────────────────────────────────────
 
 from adi_agent import router as adi_router
@@ -82,21 +89,6 @@ async def scan_status_stub() -> dict:
 async def motion_status_stub() -> dict:
     return {"processed": False, "motion_params": None}
 
-@app.get("/api/sim/status")
-async def sim_status_stub() -> dict:
-    return {"running": False, "fps": 0, "step": 0, "best_score": 0.0}
-
-@app.post("/api/sim/load")
-async def sim_load_stub() -> dict:
-    return {"status": "not_implemented", "sim_fps": 0, "parallel_variants": 0, "best_variant_score": 0.0}
-
-@app.post("/api/sim/correct")
-async def sim_correct_stub() -> dict:
-    return {"status": "not_implemented", "param_changes": {}, "new_stl_url": ""}
-
-@app.post("/api/sim/stop")
-async def sim_stop_stub() -> dict:
-    return {"status": "stopped"}
 
 @app.get("/mobile")
 async def mobile_page():
