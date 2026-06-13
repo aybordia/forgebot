@@ -6,10 +6,40 @@ import { OrbitControls } from "three/examples/jsm/controls/OrbitControls.js"
 import { RoomEnvironment } from "three/examples/jsm/environments/RoomEnvironment.js"
 import { type SimStatus } from "@/lib/websocket"
 
+export interface TwinSpec {
+  machine_colors: string[]
+  fence_color: string
+  floor_color: string
+  background_color: string
+  exposure: number
+  warmth: number
+  arm_count: number
+  has_conveyor: boolean
+  edge_density: number
+}
+
 interface SimScene3DProps {
   onStatusUpdate?: (status: SimStatus) => void
   /** Multiplier applied to arm reach (driven by corrections). 1 = default. */
   armScale?: number
+  /** When set, scene rebuilds to match this photo-derived spec. */
+  twin?: TwinSpec | null
+}
+
+const DEFAULT_TWIN: TwinSpec = {
+  machine_colors: ["#ff6a00", "#1565c0"],
+  fence_color: "#f2b705",
+  floor_color: "#232a34",
+  background_color: "#141b24",
+  exposure: 1.4,
+  warmth: 0.0,
+  arm_count: 5,
+  has_conveyor: true,
+  edge_density: 0.1,
+}
+
+function hexToInt(hex: string): number {
+  return parseInt(hex.replace("#", ""), 16)
 }
 
 // ── Industrial 6-axis robot arm builder ──────────────────────────────────────
@@ -175,7 +205,7 @@ function updateArm(arm: Arm, t: number, reach: number) {
 
 // ── Component ─────────────────────────────────────────────────────────────────
 
-export default function SimScene3D({ onStatusUpdate, armScale = 1 }: SimScene3DProps) {
+export default function SimScene3D({ onStatusUpdate, armScale = 1, twin }: SimScene3DProps) {
   const containerRef = useRef<HTMLDivElement>(null)
   const reachRef = useRef(armScale)
   const [connected, setConnected] = useState(false)
@@ -183,9 +213,13 @@ export default function SimScene3D({ onStatusUpdate, armScale = 1 }: SimScene3DP
 
   useEffect(() => { reachRef.current = armScale }, [armScale])
 
+  // Stable JSON key to retrigger scene rebuild when twin changes
+  const twinKey = twin ? JSON.stringify(twin) : "default"
+
   useEffect(() => {
     const container = containerRef.current
     if (!container) return
+    const spec: TwinSpec = twin ?? DEFAULT_TWIN
 
     const w = container.clientWidth
     const h = container.clientHeight
@@ -196,13 +230,14 @@ export default function SimScene3D({ onStatusUpdate, armScale = 1 }: SimScene3DP
     renderer.shadowMap.enabled = true
     renderer.shadowMap.type = THREE.PCFSoftShadowMap
     renderer.toneMapping = THREE.ACESFilmicToneMapping
-    renderer.toneMappingExposure = 1.4
+    renderer.toneMappingExposure = spec.exposure
     renderer.outputColorSpace = THREE.SRGBColorSpace
     container.appendChild(renderer.domElement)
 
+    const bgColor = hexToInt(spec.background_color)
     const scene = new THREE.Scene()
-    scene.background = new THREE.Color(0x141b24)
-    scene.fog = new THREE.Fog(0x141b24, 20, 52)
+    scene.background = new THREE.Color(bgColor)
+    scene.fog = new THREE.Fog(bgColor, 20, 52)
 
     // Environment map for realistic reflections
     const pmrem = new THREE.PMREMGenerator(renderer)
@@ -244,8 +279,16 @@ export default function SimScene3D({ onStatusUpdate, armScale = 1 }: SimScene3DP
     rim.position.set(-4, 10, 8)
     scene.add(rim)
 
+    // Add a touch of warmth from the source photo
+    const warmthLight = new THREE.DirectionalLight(
+      new THREE.Color(spec.warmth > 0 ? 0xffd9a8 : 0xa8c8ff),
+      Math.abs(spec.warmth) * 0.6
+    )
+    warmthLight.position.set(4, 6, -2)
+    scene.add(warmthLight)
+
     // ── Floor ──
-    const floorMat = new THREE.MeshStandardMaterial({ color: 0x232a34, metalness: 0.55, roughness: 0.5, envMapIntensity: 1.0 })
+    const floorMat = new THREE.MeshStandardMaterial({ color: hexToInt(spec.floor_color), metalness: 0.55, roughness: 0.5, envMapIntensity: 1.0 })
     const floor = new THREE.Mesh(new THREE.PlaneGeometry(60, 60), floorMat)
     floor.rotation.x = -Math.PI / 2
     floor.receiveShadow = true
@@ -269,8 +312,8 @@ export default function SimScene3D({ onStatusUpdate, armScale = 1 }: SimScene3DP
       scene.add(lane)
     }
 
-    // ── Safety fence (yellow tubular railing) ──
-    const fenceMat = new THREE.MeshStandardMaterial({ color: 0xf2b705, metalness: 0.4, roughness: 0.5 })
+    // ── Safety fence (tubular railing — color from photo palette) ──
+    const fenceMat = new THREE.MeshStandardMaterial({ color: hexToInt(spec.fence_color), metalness: 0.4, roughness: 0.5 })
     function fencePost(x: number, z: number) {
       const post = new THREE.Mesh(new THREE.CylinderGeometry(0.05, 0.05, 1.2, 12), fenceMat)
       post.position.set(x, 0.6, z)
@@ -320,30 +363,39 @@ export default function SimScene3D({ onStatusUpdate, armScale = 1 }: SimScene3DP
     wp2.position.set(0.35, 0.4, 0.3); wp2.castShadow = true
     turntable.add(wp2)
 
-    // ── Robot arms ──
+    // ── Robot arms (colors + count from photo) ──
     const arms: Arm[] = []
+    const machineColors = spec.machine_colors.length > 0
+      ? spec.machine_colors.map(hexToInt)
+      : [0xff6a00, 0x1565c0]
+    const pickColor = (i: number) => machineColors[i % machineColors.length]
+
+    const armCount = Math.max(2, Math.min(7, spec.arm_count))
+
     // Two hero arms flanking the positioner
-    const heroA = makeArm(0xff6a00, 0)
+    const heroA = makeArm(pickColor(0), 0)
     heroA.root.position.set(-2.6, 0, 1.6)
     heroA.root.rotation.y = Math.PI * 0.18
     scene.add(heroA.root); arms.push(heroA)
 
-    const heroB = makeArm(0x1565c0, 1.6)
+    const heroB = makeArm(pickColor(1), 1.6)
     heroB.root.position.set(2.6, 0, 1.6)
     heroB.root.rotation.y = -Math.PI * 0.18 + Math.PI
     scene.add(heroB.root); arms.push(heroB)
 
-    // Receding production line (depth, screenshot 2 vibe)
-    const lineColors = [0xff6a00, 0x1565c0, 0xff6a00]
-    for (let i = 0; i < 3; i++) {
-      const a = makeArm(lineColors[i], i * 0.9 + 0.4)
+    // Receding production line (extra arms = arm_count - 2)
+    const extra = Math.max(0, armCount - 2)
+    for (let i = 0; i < extra; i++) {
+      const a = makeArm(pickColor(i + 2), i * 0.9 + 0.4)
       a.root.position.set(-3.6, 0, -1.2 - i * 1.9)
       a.root.rotation.y = -Math.PI * 0.5
       a.root.scale.setScalar(0.82)
       scene.add(a.root); arms.push(a)
     }
 
-    // ── Conveyor with moving workpieces ──
+    // ── Conveyor with moving workpieces (only if source photo has one) ──
+    const crates: THREE.Mesh[] = []
+    if (spec.has_conveyor) {
     const conveyor = new THREE.Group()
     conveyor.position.set(2.8, 0, -3)
     conveyor.rotation.y = Math.PI / 2
@@ -360,7 +412,6 @@ export default function SimScene3D({ onStatusUpdate, armScale = 1 }: SimScene3DP
         conveyor.add(leg)
       }
     }
-    const crates: THREE.Mesh[] = []
     const crateMat = new THREE.MeshStandardMaterial({ color: 0xc98a3a, metalness: 0.2, roughness: 0.7 })
     for (let i = 0; i < 4; i++) {
       const crate = new THREE.Mesh(new THREE.BoxGeometry(0.5, 0.4, 0.5), crateMat)
@@ -368,6 +419,7 @@ export default function SimScene3D({ onStatusUpdate, armScale = 1 }: SimScene3DP
       crate.castShadow = true; crate.receiveShadow = true
       conveyor.add(crate); crates.push(crate)
     }
+    }  // end if (spec.has_conveyor)
 
     // ── Animation loop ──
     let raf = 0
@@ -426,7 +478,7 @@ export default function SimScene3D({ onStatusUpdate, armScale = 1 }: SimScene3DP
       renderer.dispose()
       if (renderer.domElement.parentNode === container) container.removeChild(renderer.domElement)
     }
-  }, []) // eslint-disable-line react-hooks/exhaustive-deps
+  }, [twinKey]) // eslint-disable-line react-hooks/exhaustive-deps
 
   return (
     <div className="relative h-full glass rounded-2xl overflow-hidden border border-white/5">
@@ -435,7 +487,7 @@ export default function SimScene3D({ onStatusUpdate, armScale = 1 }: SimScene3DP
       {/* Connection badge */}
       <div className="absolute top-4 left-4 flex items-center gap-2 pointer-events-none">
         <div className={`w-1.5 h-1.5 rounded-full ${connected ? "bg-green-400 shadow-lg shadow-green-400/50" : "bg-yellow-400 animate-pulse"}`} />
-        <span className="text-[10px] font-mono text-gray-400">{connected ? "DIGITAL TWIN · LIVE" : "INITIALIZING"}</span>
+        <span className="text-[10px] font-mono text-gray-400">{connected ? (twin ? "DIGITAL TWIN · MATCHED TO PHOTO" : "DIGITAL TWIN · LIVE") : "INITIALIZING"}</span>
       </div>
 
       {/* FPS */}

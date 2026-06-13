@@ -61,6 +61,9 @@ from sim import sim_router, ws_router
 app.include_router(sim_router, prefix="/api/sim")
 app.include_router(ws_router)
 
+from twin import router as twin_router
+app.include_router(twin_router, prefix="/api/twin")
+
 
 # ── Export routers ──────────────────────────────────────────────────────────
 
