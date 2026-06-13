@@ -55,54 +55,48 @@ from plan_mode import omi_webhook
 app.post("/api/omi-webhook")(omi_webhook)
 
 
+# ── Export routers ──────────────────────────────────────────────────────────
+
+from adi_agent import router as adi_router
+from design_rationale import router as rationale_router
+
+app.include_router(adi_router, prefix="/api/export")
+app.include_router(rationale_router, prefix="/api/export")
+
+
+@app.get("/api/export/stl")
+async def export_stl():
+    stl_path = os.path.join(static_dir, "robot_current.stl")
+    if os.path.exists(stl_path):
+        return FileResponse(stl_path, media_type="model/stl", filename="robot_current.stl")
+    return {"error": "No STL generated yet"}
+
+
 # ── Stub routers for endpoints Tanush doesn't own yet ────────────────────────
-# These stubs keep the app runnable before Ayan's slices are merged.
 
 @app.get("/api/scan/status")
 async def scan_status_stub() -> dict:
-    logger.info("Using foundation stub for /api/scan/status")
     return {"loaded": False, "bounds": None, "vertex_count": None}
 
 @app.get("/api/motion/status")
 async def motion_status_stub() -> dict:
-    logger.info("Using foundation stub for /api/motion/status")
     return {"processed": False, "motion_params": None}
 
 @app.get("/api/sim/status")
 async def sim_status_stub() -> dict:
-    logger.info("Using foundation stub for /api/sim/status")
     return {"running": False, "fps": 0, "step": 0, "best_score": 0.0}
 
 @app.post("/api/sim/load")
 async def sim_load_stub() -> dict:
-    logger.info("Using foundation stub for /api/sim/load")
     return {"status": "not_implemented", "sim_fps": 0, "parallel_variants": 0, "best_variant_score": 0.0}
 
 @app.post("/api/sim/correct")
 async def sim_correct_stub() -> dict:
-    logger.info("Using foundation stub for /api/sim/correct")
     return {"status": "not_implemented", "param_changes": {}, "new_stl_url": ""}
 
 @app.post("/api/sim/stop")
 async def sim_stop_stub() -> dict:
     return {"status": "stopped"}
-
-@app.get("/api/export/bom")
-async def bom_stub() -> dict:
-    logger.info("Using foundation stub for /api/export/bom")
-    return {"bom": [], "error": "No robot spec generated yet"}
-
-@app.get("/api/export/rationale")
-async def rationale_stub() -> dict:
-    logger.info("Using foundation stub for /api/export/rationale")
-    return {"explanations": [], "error": "Run CAD generation first"}
-
-@app.get("/api/export/stl")
-async def export_stl_stub():
-    stl_path = os.path.join(static_dir, "robot_current.stl")
-    if os.path.exists(stl_path):
-        return FileResponse(stl_path, media_type="model/stl", filename="robot_current.stl")
-    return {"error": "No STL generated yet"}
 
 @app.get("/mobile")
 async def mobile_page():

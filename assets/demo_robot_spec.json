@@ -1,0 +1,9 @@
+{
+  "task": "pick and place",
+  "payload_kg": 2.5,
+  "mounted": true,
+  "reach_cm": 100,
+  "dof": 4,
+  "gripper_type": "parallel",
+  "notes": "Warehouse box sorting from low shelf to table height"
+}
